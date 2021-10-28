@@ -1,0 +1,6 @@
+python tools/train.py -n yolox-nano -d 1 -b 16 --fp16
+
+python tools/demo.py video -n yolox-tiny -c /home/rangeronmars/AI/YOLOX-main/best_ckpt.pth --path /home/rangeronmars/AI/yolov5-master/src/sample01.mp4 --conf 0.25 --nms 0.45 --tsize 640 --save_result --device gpu
+
+python tools/export_onnx.py -n yolox-nano -c /home/rangeronmars/AI/YOLOX-main/best_ckpt.pth
+
