@@ -206,10 +206,10 @@ class YOLOXHead(nn.Module):
                     batch_size = reg_output.shape[0]
                     hsize, wsize = reg_output.shape[-2:]
                     reg_output = reg_output.view(
-                        batch_size, self.n_anchors, 4 , hsize, wsize
+                        batch_size, self.n_anchors, 8 , hsize, wsize
                     )
                     reg_output = reg_output.permute(0, 1, 3, 4, 2).reshape(
-                        batch_size, -1, 4
+                        batch_size, -1, 8
                     )
                     origin_preds.append(reg_output.clone())
 
@@ -327,7 +327,7 @@ class YOLOXHead(nn.Module):
                 cls_target = outputs.new_zeros((0, self.num_classes))
                 colors_target = outputs.new_zeros((0, self.num_colors))
                 reg_target = outputs.new_zeros((0, 8))
-                l1_target = outputs.new_zeros((0, 4))
+                l1_target = outputs.new_zeros((0, 8))
                 obj_target = outputs.new_zeros((total_num_anchors, 1))
                 fg_mask = outputs.new_zeros(total_num_anchors).bool()
             else:
@@ -415,7 +415,7 @@ class YOLOXHead(nn.Module):
                 reg_target = gt_bboxes_per_image[matched_gt_inds]
                 if self.use_l1:
                     l1_target = self.get_l1_target(
-                        outputs.new_zeros((num_fg_img, 4)),
+                        outputs.new_zeros((num_fg_img, 8)),
                         gt_bboxes_per_image[matched_gt_inds],
                         expanded_strides[0][fg_mask],
                         x_shifts=x_shifts[0][fg_mask],
@@ -442,15 +442,15 @@ class YOLOXHead(nn.Module):
 
         # bbox_preds = min_rect(bbox_preds.view(-1, 8)[fg_masks])
         # reg_targets = min_rect(reg_targets)
-        loss_reg = (
-            self.iou_loss(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
-        ).sum() / num_fg
+        # loss_reg = (
+        #     self.iou_loss(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
+        # ).sum() / num_fg
         # print(bbox_preds.view(-1, 8)[fg_masks].shape)
         # print(reg_targets.shape)
         # print(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
-        # loss_reg = (
-        #     self.mse(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
-        # ).sum() / num_fg
+        loss_reg = (
+            self.mse(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
+        ).sum() / num_fg
 
         loss_obj = (
             self.bcewithlog_loss(obj_preds.view(-1, 1), obj_targets)
@@ -470,15 +470,15 @@ class YOLOXHead(nn.Module):
 
         if self.use_l1:
             loss_l1 = (
-                self.l1_loss(origin_preds.view(-1, 4)[fg_masks], l1_targets)
+                self.l1_loss(origin_preds.view(-1, 8)[fg_masks], l1_targets)
             ).sum() / num_fg
         else:
             loss_l1 = 0.0
 
-        reg_weight = 1
-        conf_weight = 1
-        clr_weight = 1
-        cls_weight = 1
+        reg_weight = 0.5
+        conf_weight = 2
+        clr_weight = 10
+        cls_weight = 10
         loss = reg_weight * loss_reg + conf_weight * loss_obj + cls_weight * loss_cls  + clr_weight * loss_colors + loss_l1
 
         return (
@@ -494,8 +494,12 @@ class YOLOXHead(nn.Module):
     def get_l1_target(self, l1_target, gt, stride, x_shifts, y_shifts, eps=1e-8):
         l1_target[:, 0] = gt[:, 0] / stride - x_shifts
         l1_target[:, 1] = gt[:, 1] / stride - y_shifts
-        l1_target[:, 2] = torch.log(gt[:, 2] / stride + eps)
-        l1_target[:, 3] = torch.log(gt[:, 3] / stride + eps)
+        l1_target[:, 2] = gt[:, 2] / stride - x_shifts
+        l1_target[:, 3] = gt[:, 3] / stride - y_shifts
+        l1_target[:, 4] = gt[:, 4] / stride - x_shifts
+        l1_target[:, 5] = gt[:, 5] / stride - y_shifts
+        l1_target[:, 6] = gt[:, 6] / stride - x_shifts
+        l1_target[:, 7] = gt[:, 7] / stride - y_shifts
         return l1_target
 
     @torch.no_grad()

@@ -39,24 +39,37 @@ def augment_hsv(img, hgain=0.015, sgain=0.7, vgain=0.4):
     cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR, dst=img)  # no return needed
 
 
-def box_candidates(box1, box2, wh_thr=2, ar_thr=20, area_thr=0.2):
-    # box1(8,n), box2(8,n)
-    # Compute candidate boxes which include follwing 5 things:
-    # box1 before augment, box2 after augment, wh_thr (pixels), aspect_ratio_thr, area_ratio
-    # w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
-    # w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
-    # ar = np.maximum(w2 / (h2 + 1e-16), h2 / (w2 + 1e-16))  # aspect ratio
+def box_candidates(box1, box2, wh_thr=0.5, ar_thr=10, area_thr=0.2):
     area_map = []
     for bbox1, bbox2 in zip(box1, box2):
         bbox1 = bbox1.reshape(-1,2)
         bbox2 = bbox2.reshape(-1,2)
         bbox1 = Polygon(bbox1)
         bbox2 = Polygon(bbox2)
+
+        bbox1_bound_w = bbox1.bounds[2] - bbox1.bounds[0]
+        bbox2_bound_w = bbox2.bounds[2] - bbox2.bounds[0]
+
+        bbox1_bound_h = bbox1.bounds[3] - bbox1.bounds[1]
+        bbox2_bound_h = bbox2.bounds[3] - bbox2.bounds[1]
+
+        if (bbox1_bound_w != 0 and bbox1_bound_h != 0 
+        and bbox1_bound_h != 0 and bbox2_bound_h != 0 ):
+            bbox1_wh = bbox1_bound_w / bbox1_bound_h
+            bbox2_wh = bbox2_bound_w / bbox2_bound_h
+
+            bbox_wh_ratio = abs(bbox1_wh - bbox2_wh)
+        else:
+            #For illegal widht and height
+            bbox_wh_ratio = 100
+
         area = 0
         if bbox2.area != 0 and bbox1.area != 0:
             area = bbox2.area / bbox1.area
-        area_map.append(area < ar_thr and
-                         area > area_thr)
+        area_map.append((area < ar_thr) &
+                         (area > area_thr)&
+                         (bbox_wh_ratio < wh_thr)
+                         )
     area_map = np.array(area_map)
     return area_map
 

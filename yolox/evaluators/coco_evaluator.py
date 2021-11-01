@@ -118,14 +118,13 @@ class COCOEvaluator:
                 bbox_preds = torch.stack(bbox_preds)
                 # print(bbox_preds.shape)
                 conf_preds = outputs[:,:,8].unsqueeze(-1)
-                # colors_preds = outputs[:,:,9:9 + self.num_colors].repeat(1, 1, self.num_classes)
                 colors_preds = torch.cat((outputs[:,:,9:10].repeat(1, 1, self.num_classes),
                                             outputs[:,:,10:11].repeat(1, 1, self.num_classes),
                                             outputs[:,:,11:12].repeat(1, 1, self.num_classes)
                                                                                 ),dim=2)
                 cls_preds = outputs[:,:,9 + self.num_colors:].repeat(1, 1, self.num_colors)
                 cls_preds_converted = (colors_preds + cls_preds) / 2
-                outputs = torch.cat((bbox_preds,conf_preds,cls_preds_converted[:, :, :7],cls_preds_converted[:, :, 8:15]),dim=2)
+                outputs = torch.cat((bbox_preds,conf_preds,cls_preds_converted),dim=2)
                 
 
                 if decoder is not None:

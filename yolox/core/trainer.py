@@ -100,12 +100,13 @@ class Trainer:
         inps, targets = self.exp.preprocess(inps, targets, self.input_size)
         data_end_time = time.time()
         # src = np.array(inps[0][0].cpu(),dtype=np.int8)
-        # targets=np.array(targets[0].cpu(),dtype=np.int16)
-        # for target in targets:
-        #     cv2.line(src, tuple(np.array(target[2:4])), tuple(np.array(target[4:6])), 255,4)
-        #     cv2.line(src, tuple(np.array(target[4:6])), tuple(np.array(target[6:8])), 255,4)
-        #     cv2.line(src, tuple(np.array(target[6:8])), tuple(np.array(target[8:10])), 255,4)
-        #     cv2.line(src, tuple(np.array(target[8:10])), tuple(np.array(target[2:4])), 255,4)
+        # targets1=np.array(targets[0].cpu(),dtype=np.int16)
+        # print(targets1)
+        # for target in targets1:
+        #     cv2.line(src, tuple(np.array(target[2:4])), tuple(np.array(target[4:6])), 255,1)
+        #     cv2.line(src, tuple(np.array(target[4:6])), tuple(np.array(target[6:8])), 255,1)
+        #     cv2.line(src, tuple(np.array(target[6:8])), tuple(np.array(target[8:10])), 255,1)
+        #     cv2.line(src, tuple(np.array(target[8:10])), tuple(np.array(target[2:4])), 255,1)
         # cv2.imshow("inps",src)
         # cv2.waitKey(0)
         with torch.cuda.amp.autocast(enabled=self.amp_training):

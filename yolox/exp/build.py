@@ -24,14 +24,8 @@ def get_exp_by_name(exp_name):
 
     yolox_path = os.path.dirname(os.path.dirname(yolox.__file__))
     filedict = {
-        "yolox-s": "yolox_s.py",
-        "yolox-m": "yolox_m.py",
-        "yolox-l": "yolox_l.py",
-        "yolox-x": "yolox_x.py",
-        "yolox-tiny": "yolox_tiny.py",
-        "yolox-nano": "nano.py",
-        "nano-poly": "nano_poly.py",
-        "yolov3": "yolov3.py",
+        "nano-poly": "nano-poly.py",
+        "tiny-poly": "tiny-poly.py",
     }
     filename = filedict[exp_name]
     exp_path = os.path.join(yolox_path, "exps", "default", filename)

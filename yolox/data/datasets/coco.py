@@ -154,8 +154,8 @@ class COCODataset(Dataset):
             for ix, obj in enumerate(objs):
                 cls = self.class_ids.index(obj["category_id"])
                 res[ix, 0:8] = obj["apex"]          #Apex
-                res[ix, 8] = cls % 7                #Class
-                res[ix, 9] = cls // 7               #Color
+                res[ix, 8] = cls % 8                #Class
+                res[ix, 9] = cls // 8               #Color
             #Normalize label 
             r = min(self.img_size[0] / height, self.img_size[1] / width)
             res[:, 0:8] *= r

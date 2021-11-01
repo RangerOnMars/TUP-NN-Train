@@ -44,23 +44,23 @@ class Exp(BaseExp):
         self.hsv_prob = 1.0
         #Flip
         self.flip_prob = 0.0
-        self.degrees = 10.0
-        self.translate = 0.0
-        self.mosaic_scale = (0.5, 2)
+        self.degrees = 15.0
+        self.translate = 1.0
+        self.mosaic_scale = (0.1, 2)
         self.mixup_scale = (0.5, 1.5)
         self.shear = 2.0
-        self.perspective = 0.0
+        self.perspective = 0.1
         self.enable_mixup = False
 
         # --------------  training config --------------------- #
-        self.warmup_epochs = 5
-        self.max_epoch = 100
-        self.warmup_lr = 1e-7
-        self.basic_lr_per_img = 1e-6
+        self.warmup_epochs = 15
+        self.max_epoch = 700
+        self.warmup_lr = 2e-7
+        self.basic_lr_per_img = 2e-6
         # self.warmup_lr = 0
         # self.basic_lr_per_img = 0.01 / 64
         self.scheduler = "yoloxwarmcos"
-        self.no_aug_epochs = 0
+        self.no_aug_epochs = 20
         self.min_lr_ratio = 0.05
         self.ema = True
 
@@ -68,13 +68,13 @@ class Exp(BaseExp):
         # self.weight_decay = 1e-8
         self.momentum = 0.9
         self.print_interval = 6
-        self.eval_interval = 10
+        self.eval_interval = 5
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
         # -----------------  testing config ------------------ #
         self.test_size = (512,640)
-        self.test_conf = 0.01
-        self.nmsthre = 0.5
+        self.test_conf = 0.1
+        self.nmsthre = 0.3
 
     def get_model(self):
         from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead
@@ -192,8 +192,6 @@ class Exp(BaseExp):
         return input_size
 
     def preprocess(self, inputs, targets, tsize):
-        # print(self.input_size)
-        # print(tsize)
         scale_y = tsize[0] / self.input_size[0]
         scale_x = tsize[1] / self.input_size[1]
         if scale_x != 1 or scale_y != 1:
@@ -224,6 +222,7 @@ class Exp(BaseExp):
             optimizer = torch.optim.SGD(
                 pg0, lr=lr, momentum=self.momentum, nesterov=True
             )
+
             optimizer.add_param_group(
                 {"params": pg1, "weight_decay": self.weight_decay}
             )  # add pg1 with weight_decay
