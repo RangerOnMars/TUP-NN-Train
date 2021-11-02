@@ -38,33 +38,38 @@ class Exp(BaseExp):
         self.val_ann = "instances_val2017.json"
 
         # --------------- transform config ----------------- #
+        #Mosaic
         self.mosaic_prob = 1.0
+        self.mosaic_scale = (0.1, 2)
+        #Mixup
+        self.enable_mixup = False
         self.mixup_prob = 0.0
+        self.mixup_scale = (0.5, 1.5)
         #HSV
         self.hsv_prob = 1.0
-        #Flip
+        #Gaussian Blur
+        self.gaussian_prob = 0.3
+        #Flip 
         self.flip_prob = 0.0
+        #Affine
         self.degrees = 15.0
         self.translate = 1.0
-        self.mosaic_scale = (0.1, 2)
-        self.mixup_scale = (0.5, 1.5)
-        self.shear = 2.0
+        self.shear = 1.0
         self.perspective = 0.1
-        self.enable_mixup = False
 
         # --------------  training config --------------------- #
         self.warmup_epochs = 15
-        self.max_epoch = 700
-        self.warmup_lr = 2e-7
-        self.basic_lr_per_img = 2e-6
+        self.max_epoch = 2000
+        self.warmup_lr = 5e-7
+        self.basic_lr_per_img = 5e-6
         # self.warmup_lr = 0
         # self.basic_lr_per_img = 0.01 / 64
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 20
-        self.min_lr_ratio = 0.05
+        self.min_lr_ratio = 0.06
         self.ema = True
 
-        self.weight_decay = 1e-4
+        self.weight_decay = 2e-4
         # self.weight_decay = 1e-8
         self.momentum = 0.9
         self.print_interval = 6
@@ -73,7 +78,7 @@ class Exp(BaseExp):
 
         # -----------------  testing config ------------------ #
         self.test_size = (512,640)
-        self.test_conf = 0.1
+        self.test_conf = 0.2
         self.nmsthre = 0.3
 
     def get_model(self):
@@ -122,7 +127,8 @@ class Exp(BaseExp):
                 preproc=TrainTransform(
                     max_labels=50,
                     flip_prob=self.flip_prob,
-                    hsv_prob=self.hsv_prob),
+                    hsv_prob=self.hsv_prob,
+                    gaussian_prob=self.gaussian_prob),
                 cache=cache_img,
                 type="Train"
             )
@@ -134,7 +140,8 @@ class Exp(BaseExp):
             preproc=TrainTransform(
                 max_labels=120,
                 flip_prob=self.flip_prob,
-                hsv_prob=self.hsv_prob),
+                hsv_prob=self.hsv_prob,
+                gaussian_prob=self.gaussian_prob),
             degrees=self.degrees,
             translate=self.translate,
             mosaic_scale=self.mosaic_scale,

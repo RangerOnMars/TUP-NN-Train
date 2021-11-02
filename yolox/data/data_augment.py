@@ -38,8 +38,15 @@ def augment_hsv(img, hgain=0.015, sgain=0.7, vgain=0.4):
     ).astype(dtype)
     cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR, dst=img)  # no return needed
 
+def augment_gaussian(img, kernel_size=3, sigmaX=0,sigmaY=0):
+    """
+    Gaussian Blur Data Augment
+    """
+    cv2.GaussianBlur(src=img, ksize=(kernel_size, kernel_size), dst=img, sigmaX=sigmaX,sigmaY=sigmaY)#No return needed
 
-def box_candidates(box1, box2, wh_thr=0.5, ar_thr=10, area_thr=0.2):
+
+
+def box_candidates(box1, box2, wh_thr=1, ar_thr=10, area_thr=0.2):
     area_map = []
     for bbox1, bbox2 in zip(box1, box2):
         bbox1 = bbox1.reshape(-1,2)
@@ -59,6 +66,7 @@ def box_candidates(box1, box2, wh_thr=0.5, ar_thr=10, area_thr=0.2):
             bbox2_wh = bbox2_bound_w / bbox2_bound_h
 
             bbox_wh_ratio = abs(bbox1_wh - bbox2_wh)
+            #print(bbox_wh_ratio)
         else:
             #For illegal widht and height
             bbox_wh_ratio = 100
@@ -192,10 +200,11 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 
 
 class TrainTransform:
-    def __init__(self, max_labels=50, flip_prob=0.5, hsv_prob=1.0):
+    def __init__(self, max_labels=50, flip_prob=0.5, hsv_prob=1.0, gaussian_prob=0.2):
         self.max_labels = max_labels
         self.flip_prob = flip_prob
         self.hsv_prob = hsv_prob
+        self.gaussian_prob = gaussian_prob
 
     def __call__(self, image, targets, input_dim):
         # boxes = targets[:, :4].copy()
@@ -216,6 +225,8 @@ class TrainTransform:
 
         if random.random() < self.hsv_prob:
             augment_hsv(image)
+        if random.random() < self.gaussian_prob:
+            augment_gaussian(image)
         # mirror image
         image_t, boxes = _mirror(image, boxes, self.flip_prob)
         height, width, _ = image_t.shape

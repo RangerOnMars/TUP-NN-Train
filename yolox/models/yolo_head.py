@@ -475,7 +475,7 @@ class YOLOXHead(nn.Module):
         else:
             loss_l1 = 0.0
 
-        reg_weight = 0.5
+        reg_weight = 0.25
         conf_weight = 2
         clr_weight = 10
         cls_weight = 10
@@ -604,9 +604,9 @@ class YOLOXHead(nn.Module):
         del cls_preds_, color_preds_
 
         cost = (
-            0.5 *pair_wise_cls_loss
-            + 0.5 * pair_wise_colors_loss
-            + 3.0 * pair_wise_ious_loss
+            pair_wise_cls_loss
+            + 1.5 * pair_wise_colors_loss
+            + 1.5 * pair_wise_ious_loss
             + 100000.0 * (~is_in_boxes_and_center)
         )
         #-----------------------------------------------------------
