@@ -440,17 +440,13 @@ class YOLOXHead(nn.Module):
             l1_targets = torch.cat(l1_targets, 0)
         num_fg = max(num_fg, 1)
 
-        # bbox_preds = min_rect(bbox_preds.view(-1, 8)[fg_masks])
-        # reg_targets = min_rect(reg_targets)
-        # loss_reg = (
-        #     self.iou_loss(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
-        # ).sum() / num_fg
-        # print(bbox_preds.view(-1, 8)[fg_masks].shape)
-        # print(reg_targets.shape)
-        # print(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
+        
         loss_reg = (
-            self.mse(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
+            self.iou_loss(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
         ).sum() / num_fg
+        # loss_reg = (
+        #     self.mse(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
+        # ).sum() / num_fg
 
         loss_obj = (
             self.bcewithlog_loss(obj_preds.view(-1, 1), obj_targets)
@@ -475,10 +471,14 @@ class YOLOXHead(nn.Module):
         else:
             loss_l1 = 0.0
 
-        reg_weight = 0.25
-        conf_weight = 2
-        clr_weight = 10
-        cls_weight = 10
+        # reg_weight = 0.5
+        # conf_weight = 2
+        # clr_weight = 30
+        # cls_weight = 10
+        reg_weight = 1.0
+        conf_weight = 1.0
+        clr_weight = 1.0
+        cls_weight = 1.0
         loss = reg_weight * loss_reg + conf_weight * loss_obj + cls_weight * loss_cls  + clr_weight * loss_colors + loss_l1
 
         return (

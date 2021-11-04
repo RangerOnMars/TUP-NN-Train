@@ -25,6 +25,7 @@ def get_exp_by_name(exp_name):
     yolox_path = os.path.dirname(os.path.dirname(yolox.__file__))
     filedict = {
         "nano-poly": "nano-poly.py",
+        "nano-polyv2": "nano-polyv2.py",
         "tiny-poly": "tiny-poly.py",
     }
     filename = filedict[exp_name]
