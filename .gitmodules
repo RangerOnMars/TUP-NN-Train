@@ -1,3 +1,3 @@
 [submodule "datasets/TUP-Armor-Dataset"]
 	path = datasets/TUP-Armor-Dataset
-	url = git@github.com:RangerOnMars/TUP-Armor-Dataset.git
+	url = https://github.com/RangerOnMars/TUP-Armor-Dataset.git
