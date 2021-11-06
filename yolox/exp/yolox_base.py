@@ -26,20 +26,20 @@ class Exp(BaseExp):
         # ---------------- dataloader config ---------------- #
         # set worker to 4 for shorter dataloader init time
         self.data_num_workers = 4
-        self.input_size = (512,640)  # (height, width)
+        self.input_size = (384,640)  # (height, width)
         # Actual multiscale ranges: [640-5*32, 640+5*32].
         # To disable multiscale training, set the
         # self.multiscale_range to 0.
         self.multiscale_range = 5
         # You can uncomment this line to specify a multiscale range
         # self.random_size = (14, 26)
-        self.data_dir = None
+        self.data_dir = "TUP-Armor-Dataset"
         self.train_ann = "instances_train2017.json"
         self.val_ann = "instances_val2017.json"
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 1.0
+        self.mosaic_prob = 0.5
         self.mosaic_scale = (0.1, 2)
         #Mixup
         self.enable_mixup = False
@@ -58,6 +58,7 @@ class Exp(BaseExp):
         self.perspective = 0.1
 
         # --------------  training config --------------------- #
+        #For Using SGD+Momentum
         self.warmup_epochs = 20
         self.max_epoch = 2000
         # self.warmup_lr = 4e-7
@@ -69,15 +70,16 @@ class Exp(BaseExp):
         self.min_lr_ratio = 0.06
         self.ema = True
 
-        self.weight_decay = 1e-4
+        self.weight_decay = 5e-4
         # self.weight_decay = 1e-8
         self.momentum = 0.9
+
         self.print_interval = 6
         self.eval_interval = 5
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
         # -----------------  testing config ------------------ #
-        self.test_size = (512,640)
+        self.test_size = (384,640)
         self.test_conf = 0.2
         self.nmsthre = 0.3
 
@@ -259,7 +261,7 @@ class Exp(BaseExp):
         valdataset = COCODataset(
             data_dir=self.data_dir,
             json_file=self.val_ann if not testdev else "image_info_test-dev2017.json",
-            name="val2017" if not testdev else "test2017",
+            name="images",
             img_size=self.test_size,
             preproc=ValTransform(legacy=legacy),
             type="eval"
