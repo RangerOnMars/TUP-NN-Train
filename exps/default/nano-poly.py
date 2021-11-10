@@ -15,7 +15,6 @@ class Exp(MyExp):
         super(Exp, self).__init__()
         self.depth = 0.33
         self.width = 0.25
-        #self.width = 0.50
         self.scale = (0.5, 1.5)
         self.random_size = (10, 16)
         self.test_size = (384, 640)

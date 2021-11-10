@@ -46,7 +46,7 @@ class Exp(BaseExp):
         self.mixup_prob = 0.0
         self.mixup_scale = (0.5, 1.5)
         #HSV
-        self.hsv_prob = 0.5
+        self.hsv_prob = 0.0
         #Gaussian Blur
         self.gaussian_prob = 0.3
         #Flip 
@@ -61,10 +61,10 @@ class Exp(BaseExp):
         #For Using SGD+Momentum
         self.warmup_epochs = 20
         self.max_epoch = 2000
-        # self.warmup_lr = 4e-7
-        # self.basic_lr_per_img = 4e-6
-        self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 64
+        self.warmup_lr = 4e-7
+        self.basic_lr_per_img = 4e-6
+        # self.warmup_lr = 0
+        # self.basic_lr_per_img = 0.01 / 64
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 20
         self.min_lr_ratio = 0.06

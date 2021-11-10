@@ -54,6 +54,7 @@ class Trainer:
         self.data_type = torch.float16 if args.fp16 else torch.float32
         self.input_size = exp.input_size
         self.best_ap = 0
+        self.loss = 0
 
         # metric record
         self.meter = MeterBuffer(window_size=exp.print_interval)
@@ -114,6 +115,8 @@ class Trainer:
             outputs = self.model(inps, targets)
 
         loss = outputs["total_loss"]
+        self.loss = outputs
+
         self.optimizer.zero_grad()
         self.scaler.scale(loss).backward()
         self.scaler.step(self.optimizer)
@@ -216,6 +219,12 @@ class Trainer:
 
     def after_epoch(self):
         self.save_ckpt(ckpt_name="latest")
+        if self.rank == 0:
+            self.tblogger.add_scalar("train/total_loss", self.loss["total_loss"], self.epoch + 1)
+            self.tblogger.add_scalar("train/reg_loss", self.loss["reg_loss"], self.epoch + 1)
+            self.tblogger.add_scalar("train/l1_loss", self.loss["l1_loss"], self.epoch + 1)
+            self.tblogger.add_scalar("train/conf_loss", self.loss["conf_loss"], self.epoch + 1)
+            self.tblogger.add_scalar("train/colors_loss", self.loss["colors_loss"], self.epoch + 1)
 
         if (self.epoch + 1) % self.exp.eval_interval == 0:
             all_reduce_norm(self.model)
