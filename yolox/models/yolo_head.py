@@ -17,7 +17,7 @@ import torch.nn.functional as F
 
 from yolox.utils import bboxes_iou
 from yolox.utils.boxes import min_rect
-from .losses import PolyIOUloss
+from .losses import PolyIOUloss,WingLoss
 
 from .network_blocks import BaseConv, DWConv
 
@@ -148,7 +148,8 @@ class YOLOXHead(nn.Module):
         self.l1_loss = nn.L1Loss(reduction="none")
         self.bcewithlog_loss = nn.BCEWithLogitsLoss(reduction="none")
         self.mse = nn.MSELoss(reduction="none")
-        self.iou_loss = PolyIOUloss(reduction="sum", loss_type="giou")
+        # self.iou_loss = PolyIOUloss(reduction="sum", loss_type="giou")
+        self.wing_loss = WingLoss()
         self.strides = strides
         self.grids = [torch.zeros(1)] * len(in_channels)
 
@@ -442,10 +443,10 @@ class YOLOXHead(nn.Module):
 
         
         # loss_reg = (
-        #     self.iou_loss(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
+        #     self.mse(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
         # ).sum() / num_fg
         loss_reg = (
-            self.mse(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
+            self.wing_loss(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
         ).sum() / num_fg
 
         loss_obj = (
@@ -471,14 +472,10 @@ class YOLOXHead(nn.Module):
         else:
             loss_l1 = 0.0
 
-        reg_weight = 0.005
+        reg_weight = 1.0
         conf_weight = 1
-        clr_weight = 1
-        cls_weight = 1
-        # reg_weight = 1.0
-        # conf_weight = 1.0
-        # clr_weight = 1.0
-        # cls_weight = 1.0
+        clr_weight = 2
+        cls_weight = 2
         loss = reg_weight * loss_reg + conf_weight * loss_obj + cls_weight * loss_cls  + clr_weight * loss_colors + loss_l1
 
         return (

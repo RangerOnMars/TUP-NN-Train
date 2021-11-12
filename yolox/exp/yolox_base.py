@@ -39,7 +39,7 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.5
+        self.mosaic_prob = 0.6
         self.mosaic_scale = (0.1, 2)
         #Mixup
         self.enable_mixup = False
@@ -52,7 +52,7 @@ class Exp(BaseExp):
         #Flip 
         self.flip_prob = 0.0
         #Affine
-        self.degrees = 15.0
+        self.degrees = 30.0
         self.translate = 1.0
         self.shear = 1.0
         self.perspective = 0.1

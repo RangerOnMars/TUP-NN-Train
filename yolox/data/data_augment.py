@@ -20,7 +20,7 @@ from shapely.geometry.geo import box
 
 from yolox.utils import xyxy2cxcywh
 
-def augment_hsv(img, hgain=0.01, sgain=0.3, vgain=0.3):
+def augment_hsv(img, hgain=0.015, sgain=0.3, vgain=0.3):
     """
     HSV Data Augment
     """
