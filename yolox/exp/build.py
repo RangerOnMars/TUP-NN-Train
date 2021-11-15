@@ -28,6 +28,7 @@ def get_exp_by_name(exp_name):
         "nano-polyv2": "nano-polyv2.py",
         "tiny-poly": "tiny-poly.py",
         "xs-poly": "xs-poly.py",
+        "xs-poly-DW": "xs-poly-DW.py",
     }
     filename = filedict[exp_name]
     exp_path = os.path.join(yolox_path, "exps", "default", filename)

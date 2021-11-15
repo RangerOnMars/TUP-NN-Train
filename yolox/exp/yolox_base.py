@@ -39,14 +39,14 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.6
-        self.mosaic_scale = (0.1, 2)
+        self.mosaic_prob = 1.0
+        self.mosaic_scale = (0.5, 1.5)
         #Mixup
         self.enable_mixup = False
         self.mixup_prob = 0.0
         self.mixup_scale = (0.5, 1.5)
         #HSV
-        self.hsv_prob = 0.0
+        self.hsv_prob = 0.8
         #Gaussian Blur
         self.gaussian_prob = 0.3
         #Flip 
@@ -55,18 +55,16 @@ class Exp(BaseExp):
         self.degrees = 30.0
         self.translate = 1.0
         self.shear = 1.0
-        self.perspective = 0.1
+        self.perspective = 0.2
 
         # --------------  training config --------------------- #
         #For Using SGD+Momentum
         self.warmup_epochs = 20
-        self.max_epoch = 4000
-        # self.warmup_lr = 3e-7
-        # self.basic_lr_per_img = 3e-6
+        self.max_epoch = 3000
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 320
+        self.basic_lr_per_img = 0.01 / 160
         self.scheduler = "yoloxwarmcos"
-        self.no_aug_epochs = 20
+        self.no_aug_epochs = 100
         self.min_lr_ratio = 0.06
         self.ema = True
 
