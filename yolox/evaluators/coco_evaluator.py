@@ -113,10 +113,9 @@ class COCOEvaluator:
                 bbox_preds = []
                 #Convert[reg,conf,color,classes] into [bbox,conf,color and classes]
                 for i in range(outputs.shape[0]):
-                    bbox = min_rect(outputs[i,:,0:8])
+                    bbox = min_rect(outputs[i,:,:8])
                     bbox_preds.append(bbox)
                 bbox_preds = torch.stack(bbox_preds)
-                # print(bbox_preds.shape)
                 conf_preds = outputs[:,:,8].unsqueeze(-1)
                 colors_preds = torch.cat((outputs[:,:,9:10].repeat(1, 1, self.num_classes),
                                             outputs[:,:,10:11].repeat(1, 1, self.num_classes),

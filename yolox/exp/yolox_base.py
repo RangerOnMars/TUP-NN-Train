@@ -19,6 +19,7 @@ class Exp(BaseExp):
         # ---------------- model config ---------------- #
         self.num_classes = 8
         self.num_colors = 3
+        self.num_apex = 4
         self.depth = 1.00
         self.width = 1.00
         self.act = 'silu'
@@ -39,7 +40,7 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 1.0
+        self.mosaic_prob = 0.5
         self.mosaic_scale = (0.5, 1.5)
         #Mixup
         self.enable_mixup = False
@@ -48,23 +49,23 @@ class Exp(BaseExp):
         #HSV
         self.hsv_prob = 0.8
         #Gaussian Blur
-        self.gaussian_prob = 0.3
+        self.gaussian_prob = 0.2
         #Flip 
         self.flip_prob = 0.0
         #Affine
         self.degrees = 30.0
         self.translate = 1.0
         self.shear = 1.0
-        self.perspective = 0.2
+        self.perspective = 0.5
 
         # --------------  training config --------------------- #
         #For Using SGD+Momentum
-        self.warmup_epochs = 20
-        self.max_epoch = 3000
+        self.warmup_epochs = 40
+        self.max_epoch = 1500
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 160
+        self.basic_lr_per_img = 0.01 / 640
         self.scheduler = "yoloxwarmcos"
-        self.no_aug_epochs = 100
+        self.no_aug_epochs = 200
         self.min_lr_ratio = 0.06
         self.ema = True
 
@@ -72,13 +73,13 @@ class Exp(BaseExp):
         # self.weight_decay = 1e-8
         self.momentum = 0.9
 
-        self.print_interval = 6
-        self.eval_interval = 5
+        self.print_interval = 10
+        self.eval_interval = 1
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
         # -----------------  testing config ------------------ #
         self.test_size = (384,640)
-        self.test_conf = 0.2
+        self.test_conf = 0.25
         self.nmsthre = 0.3
 
     def get_model(self):
@@ -93,7 +94,7 @@ class Exp(BaseExp):
             
             in_channels = [256, 512, 1024]
             backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
-            head = YOLOXHead(self.num_classes,self.num_colors, self.width, in_channels=in_channels, act=self.act)
+            head = YOLOXHead(self.num_apex,self.num_classes,self.num_colors, self.width, in_channels=in_channels, act=self.act)
             self.model = YOLOX(backbone, head)
 
         self.model.apply(init_yolo)

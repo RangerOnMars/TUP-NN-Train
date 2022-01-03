@@ -149,10 +149,11 @@ class COCODataset(Dataset):
             
             res = np.zeros((num_objs, 10))
 
-            for ix, obj in enumerate(objs):
-                cls = self.class_ids.index(obj["category_id"])
-                res[ix, 0:4] = obj["clean_bbox"]
-            #     res[ix, 4] = cls
+            # for ix, obj in enumerate(objs):
+            #     cls = self.class_ids.index(obj["category_id"])
+            #     print(res[ix])
+            #     res[ix, 0:4] = obj["clean_bbox"]
+            # #     res[ix, 4] = cls
             for ix, obj in enumerate(objs):
                 cls = self.class_ids.index(obj["category_id"])
                 res[ix, 0:8] = obj["apex"]          #Apex
