@@ -144,16 +144,17 @@ def random_perspective(
     # Transform label coordinates
     n = len(targets)
     if n:
+        apexes = int((targets.shape[1] - 2) / 2)
         # warp points
-        xy = np.ones((n * 4, 3))
-        xy[:, :2] = targets[:, :8].reshape(
-            n * 4, 2
-        )  # x1y1, x2y2, x1y2, x2y1
+        xy = np.ones((n * apexes, 3))
+        xy[:, :2] = targets[:, :-2].reshape(
+            n * apexes, 2
+        )  # x1y1, x2y2, x3y3 ..., xnyn
         xy = xy @ M.T  # transform
         if perspective:
-            xy = (xy[:, :2] / xy[:, 2:3]).reshape(n, 8)  # rescale
+            xy = (xy[:, :2] / xy[:, 2:3]).reshape(n, apexes * 2)  # rescale
         else:  # affine
-            xy = xy[:, :2].reshape(n, 8)
+            xy = xy[:, :2].reshape(n, apexes * 2)
 
         # # clip boxes
         xy[:, ::2] = xy[:, ::2].clip(0, width)
@@ -162,7 +163,7 @@ def random_perspective(
         # filter candidates
         i = box_candidates(box1=targets[:, :8], box2=xy)
         targets = targets[i]
-        targets[:, :8] = xy[i]
+        targets[:, :-2] = xy[i]
 
     return img, targets
 
@@ -200,28 +201,27 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 
 
 class TrainTransform:
-    def __init__(self, max_labels=50, flip_prob=0.5, hsv_prob=1.0, gaussian_prob=0.2):
+    def __init__(self, num_apexes,max_labels=50, flip_prob=0.5, hsv_prob=1.0, gaussian_prob=0.2):
+        self.num_apexes = num_apexes
         self.max_labels = max_labels
         self.flip_prob = flip_prob
         self.hsv_prob = hsv_prob
         self.gaussian_prob = gaussian_prob
 
     def __call__(self, image, targets, input_dim):
-        # boxes = targets[:, :4].copy()
-        # labels = targets[:, 4].copy()
-        boxes = targets[:, :8].copy()
-        labels = targets[:, 8:10].copy()
+        boxes = targets[:, :self.num_apexes * 2].copy()
+        labels = targets[:, self.num_apexes * 2:].copy()
         if len(boxes) == 0:
             # targets = np.zeros((self.max_labels, 5), dtype=np.float32)
-            targets = np.zeros((self.max_labels, 10), dtype=np.float32)
+            targets = np.zeros((self.max_labels, self.num_apexes * 2 + 2), dtype=np.float32)
             image, r_o = preproc(image, input_dim)
             return image, targets
 
         image_o = image.copy()
         targets_o = targets.copy()
         height_o, width_o, _ = image_o.shape
-        boxes_o = targets_o[:, :8]
-        labels_o = targets_o[:, 8:10]
+        boxes_o = targets_o[:, :self.num_apexes * 2]
+        labels_o = targets_o[:, self.num_apexes * 2:]
 
         if random.random() < self.hsv_prob:
             augment_hsv(image)
@@ -252,10 +252,8 @@ class TrainTransform:
         # print()
         targets_t = np.hstack((labels_t, boxes_t))
         # padded_labels = np.zeros((self.max_labels, 5))
-        padded_labels = np.zeros((self.max_labels, 10))
-        padded_labels[range(len(targets_t))[: self.max_labels]] = targets_t[
-            : self.max_labels
-        ]
+        padded_labels = np.zeros((self.max_labels, self.num_apexes * 2 + 2))
+        padded_labels[range(len(targets_t))[:self.max_labels]] = targets_t[:self.max_labels]
         padded_labels = np.ascontiguousarray(padded_labels, dtype=np.float32)
         return image_t, padded_labels
 

@@ -112,26 +112,17 @@ class MosaicDetection(Dataset):
                 padw, padh = l_x1 - s_x1, l_y1 - s_y1
                 labels = _labels.copy()
                 if _labels.size > 0:
-                    labels[:, 0] = scale * _labels[:, 0] + padw
-                    labels[:, 1] = scale * _labels[:, 1] + padh
-                    labels[:, 2] = scale * _labels[:, 2] + padw
-                    labels[:, 3] = scale * _labels[:, 3] + padh
-                    labels[:, 4] = scale * _labels[:, 4] + padw
-                    labels[:, 5] = scale * _labels[:, 5] + padh
-                    labels[:, 6] = scale * _labels[:, 6] + padw
-                    labels[:, 7] = scale * _labels[:, 7] + padh
+                    # print(scale)
+                    labels[:, 0:-2] = scale * _labels[:, 0:-2]
+                    labels[:, :-2:2] += padw
+                    labels[:, 1:-2:2] += padh
                 mosaic_labels.append(labels)
             #Clip the value of label.
+            # print(mosaic_labels[0].shape)
             if len(mosaic_labels):
                 mosaic_labels = np.concatenate(mosaic_labels, 0)
-                np.clip(mosaic_labels[:, 0], 0, 2 * input_w, out=mosaic_labels[:, 0])
-                np.clip(mosaic_labels[:, 1], 0, 2 * input_h, out=mosaic_labels[:, 1])
-                np.clip(mosaic_labels[:, 2], 0, 2 * input_w, out=mosaic_labels[:, 2])
-                np.clip(mosaic_labels[:, 3], 0, 2 * input_h, out=mosaic_labels[:, 3])
-                np.clip(mosaic_labels[:, 4], 0, 2 * input_w, out=mosaic_labels[:, 4])
-                np.clip(mosaic_labels[:, 5], 0, 2 * input_h, out=mosaic_labels[:, 5])
-                np.clip(mosaic_labels[:, 6], 0, 2 * input_w, out=mosaic_labels[:, 6])
-                np.clip(mosaic_labels[:, 7], 0, 2 * input_h, out=mosaic_labels[:, 7])
+                np.clip(mosaic_labels[:, 0:-2:2], 0, 2 * input_w, out=mosaic_labels[:, 0:-2:2])
+                np.clip(mosaic_labels[:, 1:-2:2], 0, 2 * input_h, out=mosaic_labels[:, 1:-2:2])
             mosaic_img, mosaic_labels = random_perspective(
                 mosaic_img,
                 mosaic_labels,

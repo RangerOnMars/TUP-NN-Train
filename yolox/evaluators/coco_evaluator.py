@@ -21,7 +21,7 @@ from yolox.utils import (
     time_synchronized,
     xyxy2xywh
 )
-from yolox.utils.boxes import min_rect
+from yolox.utils.boxes import min_rect, poly_postprocess
 
 
 class COCOEvaluator:
@@ -31,7 +31,7 @@ class COCOEvaluator:
     """
 
     def __init__(
-        self, dataloader, img_size, confthre, nmsthre, num_classes, num_colors, testdev=False
+        self, dataloader, img_size, confthre, nmsthre, num_apexes, num_classes, num_colors, testdev=False
     ):
         """
         Args:
@@ -46,6 +46,7 @@ class COCOEvaluator:
         self.img_size = img_size
         self.confthre = confthre
         self.nmsthre = nmsthre
+        self.num_apexes = num_apexes
         self.num_classes = num_classes
         self.num_colors = num_colors
         self.testdev = testdev
@@ -113,28 +114,45 @@ class COCOEvaluator:
                 bbox_preds = []
                 #Convert[reg,conf,color,classes] into [bbox,conf,color and classes]
                 for i in range(outputs.shape[0]):
-                    bbox = min_rect(outputs[i,:,:8])
+                    bbox = min_rect(outputs[i,:,:self.num_apexes * 2])
                     bbox_preds.append(bbox)
+                
                 bbox_preds = torch.stack(bbox_preds)
-                conf_preds = outputs[:,:,8].unsqueeze(-1)
-                colors_preds = torch.cat((outputs[:,:,9:10].repeat(1, 1, self.num_classes),
-                                            outputs[:,:,10:11].repeat(1, 1, self.num_classes),
-                                            outputs[:,:,11:12].repeat(1, 1, self.num_classes)
-                                                                                ),dim=2)
-                cls_preds = outputs[:,:,9 + self.num_colors:].repeat(1, 1, self.num_colors)
-                cls_preds_converted = (colors_preds + cls_preds) / 2
-                outputs = torch.cat((bbox_preds,conf_preds,cls_preds_converted),dim=2)
+
+                conf_preds = outputs[:,:,self.num_apexes * 2].unsqueeze(-1)
+
+                cls_preds = outputs[:,:,self.num_apexes * 2 + 1 + self.num_colors:].repeat(1, 1, self.num_colors)
+                #Initialize colors_preds
+                colors_preds = torch.clone(cls_preds)
+
+                for i in range(self.num_colors):
+                    colors_preds[:,:,i * self.num_classes:(i + 1) * self.num_classes] = outputs[:,:,self.num_apexes * 2 + 1 + i:self.num_apexes * 2 + 1 + i + 1].repeat(1, 1, self.num_classes)
+                     
+                cls_preds_converted = colors_preds * cls_preds
+
+                # cls_preds_converted = (colors_preds + cls_preds) / 2
+
+                outputs_rect = torch.cat((bbox_preds,conf_preds,cls_preds_converted),dim=2)
+                outputs_poly = torch.cat((outputs[:,:,:self.num_apexes * 2],conf_preds,cls_preds_converted),dim=2)
+                # print("--",outputs_poly.shape,"+",outputs_rect.shape)
                 
 
                 if decoder is not None:
-                    outputs = decoder(outputs, dtype=outputs.type())
+                    outputs_rect = decoder(outputs, dtype=outputs.type())
 
                 if is_time_record:
                     infer_end = time_synchronized()
                     inference_time += infer_end - start
-                #FIX ME! NO ENOUGH DATASET
-                outputs = postprocess(
-                    outputs, (self.num_classes - 1) * (self.num_colors - 1), self.confthre, self.nmsthre
+                # outputs = postprocess(
+                #     outputs_rect, (self.num_classes - 1) * (self.num_colors - 1), self.confthre, self.nmsthre
+                # )
+                outputs = poly_postprocess(
+                    outputs_rect,
+                    outputs_poly,
+                    self.num_apexes,
+                    (self.num_classes - 1) * (self.num_colors - 1),
+                    self.confthre,
+                    self.nmsthre
                 )
                 if is_time_record:
                     nms_end = time_synchronized()
@@ -159,27 +177,32 @@ class COCOEvaluator:
                 continue
             output = output.cpu()
             # print(output.shape)
-
-            bboxes = output[:, 0:4]
+            apexes = output[:, :self.num_apexes * 2]
+            bboxes = min_rect(apexes)
 
             # preprocessing: resize
             scale = min(
                 self.img_size[0] / float(img_h), self.img_size[1] / float(img_w)
             )
+
             bboxes /= scale
-            bboxes = xyxy2xywh(bboxes)
-            # print(outputs)
-            cls = output[:, 6]
-            scores = output[:, 4] * output[:, 5]
+            apexes /= scale
+            # cls = output[:, 6]
+            # scores = output[:, 4] * output[:, 5]
+            cls = output[:, self.num_apexes * 2 + 2]
+            scores = output[:, self.num_apexes * 2] * output[:, self.num_apexes * 2 + 1]
             for ind in range(bboxes.shape[0]):
                 label = self.dataloader.dataset.class_ids[int(cls[ind])]
+                # print(bboxes[ind].numpy().tolist())
                 pred_data = {
                     "image_id": int(img_id),
                     "category_id": label,
                     "bbox": bboxes[ind].numpy().tolist(),
                     "score": scores[ind].numpy().item(),
-                    "segmentation": [],
+                    "iscrowd": 0,
+                    "segmentation": [apexes[ind].numpy().tolist()],
                 }  # COCO json format
+                # print(pred_data)
                 data_list.append(pred_data)
 
         return data_list
@@ -226,7 +249,7 @@ class COCOEvaluator:
 
                 logger.warning("Use standard COCOeval.")
 
-            cocoEval = COCOeval(cocoGt, cocoDt, annType[1])
+            cocoEval = COCOeval(cocoGt, cocoDt, annType[0])
             cocoEval.evaluate()
             cocoEval.accumulate()
             redirect_string = io.StringIO()

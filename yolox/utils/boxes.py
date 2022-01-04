@@ -60,7 +60,7 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agn
 
     output = [None for _ in range(len(prediction))]
     for i, image_pred in enumerate(prediction):
-
+        # print(image_pred.shape)
         # If none are remaining => process next image
         if not image_pred.size(0):
             continue
@@ -90,6 +90,55 @@ def postprocess(prediction, num_classes, conf_thre=0.7, nms_thre=0.45, class_agn
             )
 
         detections = detections[nms_out_index]
+        if output[i] is None:
+            output[i] = detections
+        else:
+            output[i] = torch.cat((output[i], detections))
+
+    return output
+
+def poly_postprocess(prediction_rect, prediction_poly, num_apex, num_classes, conf_thre=0.7, nms_thre=0.45, class_agnostic=False):
+    box_corner = prediction_rect.new(prediction_rect.shape)
+    box_corner[:, :, 0] = prediction_rect[:, :, 0] - prediction_rect[:, :, 2] / 2
+    box_corner[:, :, 1] = prediction_rect[:, :, 1] - prediction_rect[:, :, 3] / 2
+    box_corner[:, :, 2] = prediction_rect[:, :, 0] + prediction_rect[:, :, 2] / 2
+    box_corner[:, :, 3] = prediction_rect[:, :, 1] + prediction_rect[:, :, 3] / 2
+    prediction_rect[:, :, :4] = box_corner[:, :, :4]
+
+    output = [None for _ in range(len(prediction_rect))]
+    for i, image_pred in enumerate(prediction_rect):
+
+        # If none are remaining => process next image
+        if not image_pred.size(0):
+            continue
+        # Get score and class with highest confidence
+        class_conf, class_pred = torch.max(image_pred[:, 5: 5 + num_classes], 1, keepdim=True)
+
+
+        conf_mask = (image_pred[:, 4] * class_conf.squeeze() >= conf_thre).squeeze()
+        # Detections_Rect ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
+        detections_rect = torch.cat((image_pred[:, :5], class_conf, class_pred.float()), 1)
+        detections_poly = torch.cat((prediction_poly[i,:,:2 * num_apex + 1], class_conf, class_pred.float()), 1)
+        detections_rect = detections_rect[conf_mask]
+        detections_poly = detections_poly[conf_mask]
+        if not detections_rect.size(0):
+            continue
+
+        if class_agnostic:
+            nms_out_index = torchvision.ops.nms(
+                detections_rect[:, :4],
+                detections_rect[:, 4] * detections_rect[:, 5],
+                nms_thre,
+            )
+        else:
+            nms_out_index = torchvision.ops.batched_nms(
+                detections_rect[:, :4],
+                detections_rect[:, 4] * detections_rect[:, 5],
+                detections_rect[:, 6],
+                nms_thre,
+            )
+
+        detections = detections_poly[nms_out_index]
         if output[i] is None:
             output[i] = detections
         else:

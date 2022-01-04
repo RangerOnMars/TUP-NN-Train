@@ -19,7 +19,7 @@ class Exp(BaseExp):
         # ---------------- model config ---------------- #
         self.num_classes = 8
         self.num_colors = 3
-        self.num_apex = 4
+        self.num_apexes = 4
         self.depth = 1.00
         self.width = 1.00
         self.act = 'silu'
@@ -74,7 +74,7 @@ class Exp(BaseExp):
         self.momentum = 0.9
 
         self.print_interval = 10
-        self.eval_interval = 1
+        self.eval_interval = 10
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
         # -----------------  testing config ------------------ #
@@ -94,7 +94,7 @@ class Exp(BaseExp):
             
             in_channels = [256, 512, 1024]
             backbone = YOLOPAFPN(self.depth, self.width, in_channels=in_channels, act=self.act)
-            head = YOLOXHead(self.num_apex,self.num_classes,self.num_colors, self.width, in_channels=in_channels, act=self.act)
+            head = YOLOXHead(self.num_apexes,self.num_classes,self.num_colors, self.width, in_channels=in_channels, act=self.act)
             self.model = YOLOX(backbone, head)
 
         self.model.apply(init_yolo)
@@ -122,10 +122,13 @@ class Exp(BaseExp):
         #Load datasets
         with wait_for_the_master(local_rank):
             dataset = COCODataset(
+                num_classes=self.num_classes,
+                num_apexes=self.num_apexes,
                 data_dir=self.data_dir,
                 json_file=self.train_ann,
                 img_size=self.input_size,
                 preproc=TrainTransform(
+                    num_apexes = self.num_apexes,
                     max_labels=50,
                     flip_prob=self.flip_prob,
                     hsv_prob=self.hsv_prob,
@@ -139,6 +142,7 @@ class Exp(BaseExp):
             mosaic=not no_aug,
             img_size=self.input_size,
             preproc=TrainTransform(
+                num_apexes = self.num_apexes,
                 max_labels=120,
                 flip_prob=self.flip_prob,
                 hsv_prob=self.hsv_prob,
@@ -258,6 +262,8 @@ class Exp(BaseExp):
         from yolox.data import COCODataset, ValTransform
 
         valdataset = COCODataset(
+            num_classes=self.num_classes,
+            num_apexes=self.num_apexes,
             data_dir=self.data_dir,
             json_file=self.val_ann if not testdev else "image_info_test-dev2017.json",
             name="images",
@@ -297,6 +303,7 @@ class Exp(BaseExp):
             img_size=self.test_size,
             confthre=self.test_conf,
             nmsthre=self.nmsthre,
+            num_apexes=self.num_apexes,
             num_classes=self.num_classes,
             num_colors=self.num_colors,
             testdev=testdev,

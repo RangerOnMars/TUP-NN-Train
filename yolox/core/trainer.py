@@ -97,6 +97,7 @@ class Trainer:
         #images,
         inps, targets = self.prefetcher.next()
         inps = inps.to(self.data_type)
+        # print(targets)
         targets = targets.to(self.data_type)
         targets.requires_grad = False
         inps, targets = self.exp.preprocess(inps, targets, self.input_size)

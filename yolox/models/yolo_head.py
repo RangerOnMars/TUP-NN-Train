@@ -25,7 +25,7 @@ from .network_blocks import BaseConv, DWConv
 class YOLOXHead(nn.Module):
     def __init__(
         self,
-        num_apex,
+        num_apexes,
         num_classes,
         num_colors,
         width=1.0,
@@ -41,7 +41,7 @@ class YOLOXHead(nn.Module):
         """
         super().__init__()
         self.n_anchors = 1
-        self.num_apex = num_apex
+        self.num_apexes = num_apexes
         self.num_classes = num_classes
         self.num_colors = num_colors
         self.decode_in_inference = True  # for deploy, set to False
@@ -130,7 +130,7 @@ class YOLOXHead(nn.Module):
             self.reg_preds.append(
                 nn.Conv2d(
                     in_channels=int(256 * width),
-                    out_channels=self.num_apex * 2,
+                    out_channels=self.num_apexes * 2,
                     kernel_size=1,
                     stride=1,
                     padding=0,
@@ -209,10 +209,10 @@ class YOLOXHead(nn.Module):
                     batch_size = reg_output.shape[0]
                     hsize, wsize = reg_output.shape[-2:]
                     reg_output = reg_output.view(
-                        batch_size, self.n_anchors, self.num_apex * 2, hsize, wsize
+                        batch_size, self.n_anchors, self.num_apexes * 2, hsize, wsize
                     )
                     reg_output = reg_output.permute(0, 1, 3, 4, 2).reshape(
-                        batch_size, -1, self.num_apex * 2
+                        batch_size, -1, self.num_apexes * 2
                     )
                     origin_preds.append(reg_output.clone())
 
@@ -262,7 +262,7 @@ class YOLOXHead(nn.Module):
         )
         grid = grid.view(1, -1, 2)
 
-        for i in range(self.num_apex):
+        for i in range(self.num_apexes):
             output[..., 2 * i:2 * (i + 1)] = (output[..., 2 * i:2 * (i + 1)] + grid) * stride
 
         return output, grid
@@ -280,7 +280,7 @@ class YOLOXHead(nn.Module):
         grids = torch.cat(grids, dim=1).type(dtype)
         strides = torch.cat(strides, dim=1).type(dtype)
 
-        for i in range(self.num_apex):
+        for i in range(self.num_apexes):
             outputs[..., 2 * i:2 * (i + 1)] = (outputs[..., 2 * i:2 * (i + 1)] + grids) * strides
         return outputs
 
@@ -296,10 +296,10 @@ class YOLOXHead(nn.Module):
         dtype,
     ):
         # Cut feature map into bbox,obj,color,cls
-        bbox_preds = outputs[:, :, :self.num_apex * 2]  # [batch, n_anchors_all, self.num_apex * 2]
-        obj_preds = outputs[:, :, self.num_apex * 2].unsqueeze(-1)  # [batch, n_anchors_all, 1]
-        color_preds = outputs[:, :, self.num_apex * 2 + 1:self.num_apex * 2 + 1 + self.num_colors]  # [batch, n_anchors_all, n_color]
-        cls_preds = outputs[:, :, self.num_apex * 2 + 1 + self.num_colors:]  # [batch, n_anchors_all, n_cls]
+        bbox_preds = outputs[:, :, :self.num_apexes * 2]  # [batch, n_anchors_all, self.num_apexes * 2]
+        obj_preds = outputs[:, :, self.num_apexes * 2].unsqueeze(-1)  # [batch, n_anchors_all, 1]
+        color_preds = outputs[:, :, self.num_apexes * 2 + 1:self.num_apexes * 2 + 1 + self.num_colors]  # [batch, n_anchors_all, n_color]
+        cls_preds = outputs[:, :, self.num_apexes * 2 + 1 + self.num_colors:]  # [batch, n_anchors_all, n_cls]
 
         # Calculate targets
         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
@@ -327,12 +327,12 @@ class YOLOXHead(nn.Module):
             if num_gt == 0: 
                 cls_target = outputs.new_zeros((0, self.num_classes))
                 colors_target = outputs.new_zeros((0, self.num_colors))
-                reg_target = outputs.new_zeros((0, self.num_apex * 2))
-                l1_target = outputs.new_zeros((0, self.num_apex * 2))
+                reg_target = outputs.new_zeros((0, self.num_apexes * 2))
+                l1_target = outputs.new_zeros((0, self.num_apexes * 2))
                 obj_target = outputs.new_zeros((total_num_anchors, 1))
                 fg_mask = outputs.new_zeros(total_num_anchors).bool()
             else:
-                gt_bboxes_per_image = labels[batch_idx, :num_gt, 2:2 + self.num_apex * 2]
+                gt_bboxes_per_image = labels[batch_idx, :num_gt, 2:2 + self.num_apexes * 2]
                 #Get ground true classes and color
                 gt_classes = labels[batch_idx, :num_gt, 0]
                 gt_colors = labels[batch_idx, :num_gt, 1]
@@ -416,7 +416,7 @@ class YOLOXHead(nn.Module):
                 reg_target = gt_bboxes_per_image[matched_gt_inds]
                 if self.use_l1:
                     l1_target = self.get_l1_target(
-                        outputs.new_zeros((num_fg_img, 8)),
+                        outputs.new_zeros((num_fg_img, self.num_apexes * 2)),
                         gt_bboxes_per_image[matched_gt_inds],
                         expanded_strides[0][fg_mask],
                         x_shifts=x_shifts[0][fg_mask],
@@ -446,7 +446,7 @@ class YOLOXHead(nn.Module):
         #     self.mse(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
         # ).sum() / num_fg
         loss_reg = (
-            self.wing_loss(bbox_preds.view(-1, self.num_apex * 2)[fg_masks], reg_targets)
+            self.wing_loss(bbox_preds.view(-1, self.num_apexes * 2)[fg_masks], reg_targets)
         ).sum() / num_fg
 
         loss_obj = (
@@ -467,7 +467,7 @@ class YOLOXHead(nn.Module):
 
         if self.use_l1:
             loss_l1 = (
-                self.l1_loss(origin_preds.view(-1, self.num_apex * 2)[fg_masks], l1_targets)
+                self.l1_loss(origin_preds.view(-1, self.num_apexes * 2)[fg_masks], l1_targets)
             ).sum() / num_fg
         else:
             loss_l1 = 0.0
@@ -489,15 +489,9 @@ class YOLOXHead(nn.Module):
         )
 
     def get_l1_target(self, l1_target, gt, stride, x_shifts, y_shifts, eps=1e-8):
-        for i in range(self.num_apex):
+        for i in range(self.num_apexes):
             l1_target[:, 2 * i] = gt[:, 2 * i] / stride - x_shifts
             l1_target[:, 2 * i + 1] = gt[:,2 * i + 1] / stride - y_shifts
-        # l1_target[:, 2] = gt[:, 2] / stride - x_shifts
-        # l1_target[:, 3] = gt[:, 3] / stride - y_shifts
-        # l1_target[:, 4] = gt[:, 4] / stride - x_shifts
-        # l1_target[:, 5] = gt[:, 5] / stride - y_shifts
-        # l1_target[:, 6] = gt[:, 6] / stride - x_shifts
-        # l1_target[:, 7] = gt[:, 7] / stride - y_shifts
         return l1_target
 
     @torch.no_grad()

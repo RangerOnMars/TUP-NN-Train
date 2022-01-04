@@ -20,6 +20,8 @@ class COCODataset(Dataset):
 
     def __init__(
         self,
+        num_classes,
+        num_apexes,
         data_dir=None,
         json_file="train.json",
         name="images",
@@ -42,9 +44,10 @@ class COCODataset(Dataset):
             data_dir = os.path.join(get_yolox_datadir(), "COCO")
         else:
             data_dir = os.path.join(get_yolox_datadir(), data_dir)
+        self.num_apexes = num_apexes
+        self.num_classes = num_classes
         self.data_dir = data_dir
         self.json_file = json_file
-
         self.coco = COCO(os.path.join(self.data_dir, "annotations", self.json_file))
         self.ids = self.coco.getImgIds()
         self.class_ids = sorted(self.coco.getCatIds())
@@ -126,28 +129,28 @@ class COCODataset(Dataset):
         objs = []
         if type == "Train":
             for obj in annotations:
-                x1 = np.max((0, obj["bbox"][0]))
-                y1 = np.max((0, obj["bbox"][1]))
-                x2 = np.min((width, x1 + np.max((0, obj["bbox"][2]))))
-                y2 = np.min((height, y1 + np.max((0, obj["bbox"][3]))))
-                if obj["area"] > 0 and x2 >= x1 and y2 >= y1:
-                    obj["clean_bbox"] = [x1, y1, x2, y2]
-                    objs.append(obj)
-                x1 = np.max((0, obj["segmentation"][0]))
-                y1 = np.max((0, obj["segmentation"][1]))
-                x2 = np.max((0, obj["segmentation"][2]))
-                y2 = np.max((0, obj["segmentation"][3]))
-                x3 = np.max((0, obj["segmentation"][4]))
-                y3 = np.max((0, obj["segmentation"][5]))
-                x4 = np.max((0, obj["segmentation"][6]))
-                y4 = np.max((0, obj["segmentation"][7]))
+                # x1 = np.max((0, obj["bbox"][0]))
+                # y1 = np.max((0, obj["bbox"][1]))
+                # x2 = np.min((width, x1 + np.max((0, obj["bbox"][2]))))
+                # y2 = np.min((height, y1 + np.max((0, obj["bbox"][3]))))
+                # if obj["area"] > 0 and x2 >= x1 and y2 >= y1:
+                #     obj["clean_bbox"] = [x1, y1, x2, y2]
+                #     objs.append(obj)
+                obj["segmentation"] = np.ravel(obj["segmentation"])
+                # x1 = np.max((0, obj["segmentation"][0]))
+                # y1 = np.max((0, obj["segmentation"][1]))
+                # x2 = np.max((0, obj["segmentation"][2]))
+                # y2 = np.max((0, obj["segmentation"][3]))
+                # x3 = np.max((0, obj["segmentation"][4]))
+                # y3 = np.max((0, obj["segmentation"][5]))
+                # x4 = np.max((0, obj["segmentation"][6]))
+                # y4 = np.max((0, obj["segmentation"][7]))
 
-                obj["apex"] = [x1, y1, x2, y2, x3, y3 ,x4, y4]
+                # obj["apex"] = [x1, y1, x2, y2, x3, y3 ,x4, y4]
                 objs.append(obj)
 
             num_objs = len(objs)
-            
-            res = np.zeros((num_objs, 10))
+            res = np.zeros((num_objs, self.num_apexes * 2 + 2))
 
             # for ix, obj in enumerate(objs):
             #     cls = self.class_ids.index(obj["category_id"])
@@ -156,13 +159,14 @@ class COCODataset(Dataset):
             # #     res[ix, 4] = cls
             for ix, obj in enumerate(objs):
                 cls = self.class_ids.index(obj["category_id"])
-                res[ix, 0:8] = obj["apex"]          #Apex
-                res[ix, 8] = cls % 8                #Class
-                res[ix, 9] = cls // 8               #Color
+                res[ix, :self.num_apexes * 2] = np.ravel(obj["segmentation"])   #Apex
+                res[ix, self.num_apexes * 2] = cls % self.num_classes           #Class
+                res[ix, self.num_apexes * 2 + 1] = cls // self.num_classes      #Color
             #Normalize label 
             r = min(self.img_size[0] / height, self.img_size[1] / width)
-            res[:, 0:8] *= r
+            res[:, :self.num_apexes * 2] *= r
         else:
+            #TODO:Not for Training ,Need to be modified if more functions is needed.
             for obj in annotations:
                 x1 = np.max((0, obj["bbox"][0]))
                 y1 = np.max((0, obj["bbox"][1]))
