@@ -249,7 +249,7 @@ class YOLOXHead(nn.Module):
     def get_output_and_grid(self, output, k, stride, dtype):
         grid = self.grids[k]
         batch_size = output.shape[0]
-        n_ch = 9 + self.num_classes + self.num_colors
+        n_ch = 1 + self.num_apexes * 2 + self.num_classes + self.num_colors
         hsize, wsize = output.shape[-2:]
         if grid.shape[2:4] != output.shape[2:4]:
             #Generate grid
@@ -303,6 +303,7 @@ class YOLOXHead(nn.Module):
 
         # Calculate targets
         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
+        # print(labels)
         total_num_anchors = outputs.shape[1]
         x_shifts = torch.cat(x_shifts, 1)  # [1, n_anchors_all]
         y_shifts = torch.cat(y_shifts, 1)  # [1, n_anchors_all]

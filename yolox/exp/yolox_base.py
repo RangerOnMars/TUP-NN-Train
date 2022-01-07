@@ -17,9 +17,9 @@ class Exp(BaseExp):
         super().__init__()
 
         # ---------------- model config ---------------- #
-        self.num_classes = 8
-        self.num_colors = 3
-        self.num_apexes = 4
+        self.num_classes = 2
+        self.num_colors = 2
+        self.num_apexes = 5
         self.depth = 1.00
         self.width = 1.00
         self.act = 'silu'
@@ -40,7 +40,7 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.5
+        self.mosaic_prob = 1.0
         self.mosaic_scale = (0.5, 1.5)
         #Mixup
         self.enable_mixup = False
@@ -49,7 +49,7 @@ class Exp(BaseExp):
         #HSV
         self.hsv_prob = 0.8
         #Gaussian Blur
-        self.gaussian_prob = 0.2
+        self.gaussian_prob = 0.01
         #Flip 
         self.flip_prob = 0.0
         #Affine
@@ -73,7 +73,7 @@ class Exp(BaseExp):
         # self.weight_decay = 1e-8
         self.momentum = 0.9
 
-        self.print_interval = 10
+        self.print_interval = 2
         self.eval_interval = 10
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
