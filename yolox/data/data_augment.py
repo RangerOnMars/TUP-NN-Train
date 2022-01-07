@@ -44,9 +44,32 @@ def augment_gaussian(img, kernel_size=3, sigmaX=0,sigmaY=0):
     """
     cv2.GaussianBlur(src=img, ksize=(kernel_size, kernel_size), dst=img, sigmaX=sigmaX,sigmaY=sigmaY)#No return needed
 
+def is_outrange(img, box, padding_ratio=0.01, max_outrange_x=20, max_outrange_y=20):
+    area_map = []
+    for bbox in box:
+        x = bbox[0::2]
+        y = bbox[1::2]
+        x_max = np.max(x)
+        x_min = np.min(x)
+        y_max = np.max(y)
+        y_min = np.min(y)
+        if x_max > img.shape[1] + max_outrange_x or x_min < -max_outrange_x or y_max > img.shape[0] + max_outrange_y or y_min < -max_outrange_y:
+            target_poly = Polygon(bbox.reshape(-1, 2))
+            area = target_poly.area
+            center = np.array(target_poly.centroid.coords)
+            poly_vector = (bbox - center.repeat(len(bbox) / 2)).reshape(-1, 2)
+            # Normalize Vector
+            poly_vector /= np.linalg.norm(poly_vector, axis=1, keepdims=True)
+            # padded_poly = np.array(bbox.reshape(-1, 2) + poly_vector *
+            #                        area * padding_ratio, dtype=np.int64)
+            padded_poly = np.array(bbox.reshape(-1, 2),dtype=np.int64)
+            cv2.fillConvexPoly(img, padded_poly, (0, 0, 0))
+            area_map.append(False)
+        else:
+            area_map.append(True)
+    return area_map
 
-
-def box_candidates(box1, box2, wh_thr=1, ar_thr=10, area_thr=0.2):
+def box_candidates(box1, box2, wh_thr=10, ar_thr=10, area_thr=0.1):
     area_map = []
     for bbox1, bbox2 in zip(box1, box2):
         bbox1 = bbox1.reshape(-1,2)
@@ -60,8 +83,8 @@ def box_candidates(box1, box2, wh_thr=1, ar_thr=10, area_thr=0.2):
         bbox1_bound_h = bbox1.bounds[3] - bbox1.bounds[1]
         bbox2_bound_h = bbox2.bounds[3] - bbox2.bounds[1]
 
-        if (bbox1_bound_w != 0 and bbox1_bound_h != 0 
-        and bbox1_bound_h != 0 and bbox2_bound_h != 0 ):
+        if (bbox1_bound_w != 0 and bbox1_bound_h != 0
+                and bbox1_bound_h != 0 and bbox2_bound_h != 0):
             bbox1_wh = bbox1_bound_w / bbox1_bound_h
             bbox2_wh = bbox2_bound_w / bbox2_bound_h
 
@@ -74,7 +97,7 @@ def box_candidates(box1, box2, wh_thr=1, ar_thr=10, area_thr=0.2):
         area = 0
         if bbox2.area != 0 and bbox1.area != 0:
             area = bbox2.area / bbox1.area
-        area_map.append((area < ar_thr) &
+        area_map.append((area < ar_thr)&
                          (area > area_thr)&
                          (bbox_wh_ratio < wh_thr)
                          )
@@ -95,6 +118,9 @@ def random_perspective(
     # targets = [cls, xyxy]
     height = img.shape[0] + border[0] * 2  # shape(h,w,c)
     width = img.shape[1] + border[1] * 2
+
+    i = is_outrange(img=img, box=targets[:, :-2])
+    targets = targets[i]
 
     # Center
     C = np.eye(3)
@@ -156,14 +182,16 @@ def random_perspective(
         else:  # affine
             xy = xy[:, :2].reshape(n, apexes * 2)
 
-        # # clip boxes
-        xy[:, ::2] = xy[:, ::2].clip(0, width)
-        xy[:, 1::2] = xy[:, 1::2].clip(0, height)
+        # # # clip boxes
+        # xy[:, ::2] = xy[:, ::2].clip(0, width)
+        # xy[:, 1::2] = xy[:, 1::2].clip(0, height)
 
         # filter candidates
-        i = box_candidates(box1=targets[:, :8], box2=xy)
+        i = box_candidates(box1=targets[:, :-2], box2=xy)
         targets = targets[i]
         targets[:, :-2] = xy[i]
+        j = is_outrange(img=img, box=targets[:, :-2])
+        targets = targets[j]
 
     return img, targets
 

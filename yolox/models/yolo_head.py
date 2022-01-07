@@ -249,7 +249,7 @@ class YOLOXHead(nn.Module):
     def get_output_and_grid(self, output, k, stride, dtype):
         grid = self.grids[k]
         batch_size = output.shape[0]
-        n_ch = 9 + self.num_classes + self.num_colors
+        n_ch = 1 + self.num_apexes * 2 + self.num_classes + self.num_colors
         hsize, wsize = output.shape[-2:]
         if grid.shape[2:4] != output.shape[2:4]:
             #Generate grid
