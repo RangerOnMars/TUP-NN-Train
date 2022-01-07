@@ -118,11 +118,12 @@ class MosaicDetection(Dataset):
                     labels[:, 1:-2:2] += padh
                 mosaic_labels.append(labels)
             #Clip the value of label.
-            # print(mosaic_labels[0].shape)
             if len(mosaic_labels):
                 mosaic_labels = np.concatenate(mosaic_labels, 0)
-                np.clip(mosaic_labels[:, 0:-2:2], 0, 2 * input_w, out=mosaic_labels[:, 0:-2:2])
-                np.clip(mosaic_labels[:, 1:-2:2], 0, 2 * input_h, out=mosaic_labels[:, 1:-2:2])
+                #TODO:Fix Illegal Annoation.
+                # print(mosaic_labels)
+                # np.clip(mosaic_labels[:, 0:-2:2], 0, 2 * input_w, out=mosaic_labels[:, 0:-2:2])
+                # np.clip(mosaic_labels[:, 1:-2:2], 0, 2 * input_h, out=mosaic_labels[:, 1:-2:2])
             mosaic_img, mosaic_labels = random_perspective(
                 mosaic_img,
                 mosaic_labels,
