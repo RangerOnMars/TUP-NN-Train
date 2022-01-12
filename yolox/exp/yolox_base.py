@@ -22,7 +22,7 @@ class Exp(BaseExp):
         self.num_apexes = 4
         self.depth = 1.00
         self.width = 1.00
-        self.act = 'silu'
+        self.act = 'hswish'
 
         # ---------------- dataloader config ---------------- #
         # set worker to 4 for shorter dataloader init time
@@ -40,7 +40,7 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.5
+        self.mosaic_prob = 0.6
         self.mosaic_scale = (0.5, 1.5)
         #Mixup
         self.enable_mixup = False

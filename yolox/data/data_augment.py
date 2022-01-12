@@ -53,18 +53,19 @@ def is_outrange(img, box, padding_ratio=0.01, max_outrange_x=20, max_outrange_y=
         x_min = np.min(x)
         y_max = np.max(y)
         y_min = np.min(y)
-        if x_max > img.shape[1] + max_outrange_x or x_min < -max_outrange_x or y_max > img.shape[0] + max_outrange_y or y_min < -max_outrange_y:
-            target_poly = Polygon(bbox.reshape(-1, 2))
-            area = target_poly.area
-            center = np.array(target_poly.centroid.coords)
-            poly_vector = (bbox - center.repeat(len(bbox) / 2)).reshape(-1, 2)
-            # Normalize Vector
-            poly_vector /= np.linalg.norm(poly_vector, axis=1, keepdims=True)
-            # padded_poly = np.array(bbox.reshape(-1, 2) + poly_vector *
-            #                        area * padding_ratio, dtype=np.int64)
-            padded_poly = np.array(bbox.reshape(-1, 2),dtype=np.int64)
-            cv2.fillConvexPoly(img, padded_poly, (0, 0, 0))
-            area_map.append(False)
+        #If Max or min is out of range or label is out of range:
+        if ((x_max > img.shape[1] + max_outrange_x or x_min < -max_outrange_x 
+            or y_max > img.shape[0] + max_outrange_y or y_min < -max_outrange_y)
+            or (x_min > img.shape[1] or x_max < 0 or y_min > img.shape[0]or y_max <0)):
+                target_poly = Polygon(bbox.reshape(-1, 2))
+                area = target_poly.area
+                center = np.array(target_poly.centroid.coords)
+                poly_vector = bbox.reshape(-1, 2) - np.repeat(center,len(bbox) / 2,axis=0)
+                # Normalize Vector
+                poly_vector /= np.linalg.norm(poly_vector, axis=1, keepdims=True)
+                padded_poly = np.array(bbox.reshape(-1, 2) + poly_vector * area * padding_ratio, dtype=np.int64)
+                cv2.fillConvexPoly(img, padded_poly, (0, 0, 0))
+                area_map.append(False)
         else:
             area_map.append(True)
     return area_map
