@@ -473,10 +473,10 @@ class YOLOXHead(nn.Module):
         else:
             loss_l1 = 0.0
 
-        reg_weight = 10
+        reg_weight = 3
         conf_weight = 1
-        clr_weight = 2
-        cls_weight = 2
+        clr_weight = 1
+        cls_weight = 1
         loss = reg_weight * loss_reg + conf_weight * loss_obj + cls_weight * loss_cls  + clr_weight * loss_colors + loss_l1
 
         return (

@@ -102,14 +102,16 @@ class Trainer:
         targets.requires_grad = False
         inps, targets = self.exp.preprocess(inps, targets, self.input_size)
         data_end_time = time.time()
-        # src = np.array(inps[0][0].cpu(),dtype=np.int8)
+        # src = np.array(inps[0].cpu(),dtype=np.uint8)
+        # src = src.transpose((1,2,0))
         # targets1=np.array(targets[0].cpu(),dtype=np.int16)
+        # src = src.copy()
         # for target in targets1:
-        #     cv2.line(src, tuple(np.array(target[2:4])), tuple(np.array(target[4:6])), 255,1)
-        #     cv2.line(src, tuple(np.array(target[4:6])), tuple(np.array(target[6:8])), 255,1)
-        #     cv2.line(src, tuple(np.array(target[6:8])), tuple(np.array(target[8:10])), 255,1)
-        #     cv2.line(src, tuple(np.array(target[8:10])), tuple(np.array(target[10:12])), 255,1)
-        #     cv2.line(src, tuple(np.array(target[10:12])), tuple(np.array(target[2:4])), 255,1)
+        #     cv2.line(src, tuple(np.array(target[2:4])), tuple(np.array(target[4:6])), (0,255,0), 1)
+        #     cv2.line(src, tuple(np.array(target[4:6])), tuple(np.array(target[6:8])), (0,255,0),1)
+        #     cv2.line(src, tuple(np.array(target[6:8])), tuple(np.array(target[8:10])), (0,255,0),1)
+        #     cv2.line(src, tuple(np.array(target[8:10])), tuple(np.array(target[10:12])), (0,255,0),1)
+        #     cv2.line(src, tuple(np.array(target[10:12])), tuple(np.array(target[2:4])), (0,255,0),1)
         # cv2.imshow("inps",src)
         # cv2.waitKey(0)
         with torch.cuda.amp.autocast(enabled=self.amp_training):
@@ -206,7 +208,7 @@ class Trainer:
     def before_epoch(self):
         logger.info("---> start train epoch{}".format(self.epoch + 1))
 
-        if self.epoch > 600:
+        if self.epoch > 3000:
             if self.is_distributed:
                 self.model.module.head.use_l1 = True
             else:
