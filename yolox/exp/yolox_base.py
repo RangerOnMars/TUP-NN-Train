@@ -22,7 +22,7 @@ class Exp(BaseExp):
         self.num_apexes = 5
         self.depth = 1.00
         self.width = 1.00
-        self.act = 'silu'
+        self.act = 'relu'
 
         # ---------------- dataloader config ---------------- #
         # set worker to 4 for shorter dataloader init time
@@ -40,7 +40,7 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.8
+        self.mosaic_prob = 0.6
         self.mosaic_scale = (0.5, 1.5)
         #Mixup
         self.enable_mixup = False
@@ -61,11 +61,11 @@ class Exp(BaseExp):
         # --------------  training config --------------------- #
         #For Using SGD+Momentum
         self.warmup_epochs = 40
-        self.max_epoch = 4000
+        self.max_epoch = 8000
         self.warmup_lr = 0
-        self.basic_lr_per_img = 1e-4
+        self.basic_lr_per_img = 2e-4
         self.scheduler = "yoloxwarmcos"
-        self.no_aug_epochs = 200
+        self.no_aug_epochs = 2000
         self.min_lr_ratio = 0.06
         self.ema = True
 
@@ -80,7 +80,7 @@ class Exp(BaseExp):
         # -----------------  testing config ------------------ #
         self.test_size = (384,640)
         self.test_conf = 0.25
-        self.nmsthre = 0.3
+        self.nmsthre = 0.5
 
     def get_model(self):
         from yolox.models import YOLOX, YOLOPAFPN, YOLOXHead

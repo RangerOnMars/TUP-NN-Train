@@ -8,6 +8,7 @@ import itertools
 import json
 import tempfile
 import time
+import numpy as np
 from loguru import logger
 from tqdm import tqdm
 
@@ -127,10 +128,8 @@ class COCOEvaluator:
 
                 for i in range(self.num_colors):
                     colors_preds[:,:,i * self.num_classes:(i + 1) * self.num_classes] = outputs[:,:,self.num_apexes * 2 + 1 + i:self.num_apexes * 2 + 1 + i + 1].repeat(1, 1, self.num_classes)
-                     
-                cls_preds_converted = colors_preds * cls_preds
 
-                # cls_preds_converted = (colors_preds + cls_preds) / 2
+                cls_preds_converted = (colors_preds + cls_preds) / 2.0
 
                 outputs_rect = torch.cat((bbox_preds,conf_preds,cls_preds_converted),dim=2)
                 outputs_poly = torch.cat((outputs[:,:,:self.num_apexes * 2],conf_preds,cls_preds_converted),dim=2)
@@ -193,7 +192,12 @@ class COCOEvaluator:
             scores = output[:, self.num_apexes * 2] * output[:, self.num_apexes * 2 + 1]
             for ind in range(bboxes.shape[0]):
                 label = self.dataloader.dataset.class_ids[int(cls[ind])]
-                # print(bboxes[ind].numpy().tolist())
+
+                keypoints = apexes[ind].numpy().reshape(-1,2)
+                keypoints_type = 2 * np.ones((self.num_apexes, 1))
+                keypoints = np.concatenate((keypoints,keypoints_type),axis=1)
+                keypoints = keypoints.reshape(-1).tolist()
+
                 pred_data = {
                     "image_id": int(img_id),
                     "category_id": label,
@@ -201,8 +205,10 @@ class COCOEvaluator:
                     "score": scores[ind].numpy().item(),
                     "iscrowd": 0,
                     "segmentation": [apexes[ind].numpy().tolist()],
-                }  # COCO json format
-                # print(pred_data)
+                    "num_keypoints": int(self.num_apexes),
+                    "keypoints": keypoints,
+                }# COCO json format
+                
                 data_list.append(pred_data)
 
         return data_list
@@ -249,7 +255,7 @@ class COCOEvaluator:
 
                 logger.warning("Use standard COCOeval.")
 
-            cocoEval = COCOeval(cocoGt, cocoDt, annType[0])
+            cocoEval = COCOeval(cocoGt, cocoDt, annType[2])
             cocoEval.evaluate()
             cocoEval.accumulate()
             redirect_string = io.StringIO()

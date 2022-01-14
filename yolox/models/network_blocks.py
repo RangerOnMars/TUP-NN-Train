@@ -27,12 +27,22 @@ def get_activation(name="silu", inplace=True):
         raise AttributeError("Unsupported act type: {}".format(name))
     return module
 
+def channel_shuffle(x, groups=2):
+    """Channel Shuffle"""
+    bs, chnls, h, w = x.data.size()
+    if chnls % groups:
+        return x
+    chnls_per_group = chnls // groups
+    x = x.view(bs, groups, chnls_per_group, h, w)
+    x = torch.transpose(x, 1, 2).contiguous()
+    x = x.view(bs, -1, h, w)
+    return x
 
 class BaseConv(nn.Module):
     """A Conv2d -> Batchnorm -> silu/leaky relu block"""
 
     def __init__(
-        self, in_channels, out_channels, ksize, stride, groups=1, bias=False, act="silu"
+        self, in_channels, out_channels, ksize, stride, groups=1, bias=False, act="silu", no_act=False
     ):
         super().__init__()
         # same padding
@@ -48,9 +58,13 @@ class BaseConv(nn.Module):
         )
         self.bn = nn.BatchNorm2d(out_channels)
         self.act = get_activation(act, inplace=True)
+        self.no_act = no_act
 
     def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
+        if self.no_act:
+            return self.bn(self.conv(x))
+        else:
+            return self.act(self.bn(self.conv(x)))
 
     def fuseforward(self, x):
         return self.act(self.conv(x))
@@ -59,7 +73,7 @@ class BaseConv(nn.Module):
 class DWConv(nn.Module):
     """Depthwise Conv + Conv"""
 
-    def __init__(self, in_channels, out_channels, ksize, stride=1, act="silu"):
+    def __init__(self, in_channels, out_channels, ksize, stride=1, act="silu",no_depth_act=False):
         super().__init__()
         self.dconv = BaseConv(
             in_channels,
@@ -68,6 +82,7 @@ class DWConv(nn.Module):
             stride=stride,
             groups=in_channels,
             act=act,
+            no_act = no_depth_act
         )
         self.pconv = BaseConv(
             in_channels, out_channels, ksize=1, stride=1, groups=1, act=act
@@ -186,7 +201,6 @@ class CSPLayer(nn.Module):
         x = torch.cat((x_1, x_2), dim=1)
         return self.conv3(x)
 
-
 class Focus(nn.Module):
     """Focus width and height information into channel space."""
 
@@ -210,3 +224,43 @@ class Focus(nn.Module):
             dim=1,
         )
         return self.conv(x)
+
+class ShuffleV2DownSampling(nn.Module):
+    def __init__(self, in_channels, out_channels, groups=2, act="silu"):
+        super().__init__()
+        self.groups = groups
+
+        self.dwconv_l = DWConv(in_channels,in_channels,ksize=3,stride=2,act=act,no_depth_act=True)
+        self.conv_r1 = BaseConv(in_channels,in_channels,ksize=1,stride=1,act=act)
+        self.dwconv_r=DWConv(in_channels,in_channels,ksize=3,stride=2,act=act,no_depth_act=True)
+    def forward(self, x):
+        out_l = self.dwconv_l(x)
+
+        out_r = self.conv_r1(x)
+        out_r = self.dwconv_r(out_r)
+        x = torch.cat((out_l, out_r), dim=1)
+        return channel_shuffle(x,self.groups)
+
+#TODO:Add SE Block Support
+class ShuffleV2Basic(nn.Module):
+    def __init__(self, in_channels, out_channels, stride=1, c_ratio = 0.5, groups=2, act="silu",type=""):
+        super().__init__()
+        self.in_channels = in_channels
+        self.l_channels = int(in_channels * c_ratio)
+        self.r_channels = in_channels - self.l_channels
+        self.o_r_channels = out_channels - self.l_channels
+
+        self.groups = groups
+        self.conv_r1 = BaseConv(self.r_channels, self.o_r_channels, ksize=1, stride=1, act=act)
+        self.dwconv_r = DWConv(self.o_r_channels, self.o_r_channels,ksize=3, stride=1, act=act, no_depth_act=True)
+
+    def forward(self, x):
+        x_l = x[:, :self.l_channels, :, :]
+        x_r = x[:, self.l_channels:, :, :]
+
+        out_r = self.conv_r1(x_r)
+        out_r = self.dwconv_r(out_r)
+
+        x = torch.cat((x_l, out_r), dim=1)
+
+        return channel_shuffle(x,self.groups)

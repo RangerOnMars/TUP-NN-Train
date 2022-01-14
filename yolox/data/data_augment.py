@@ -48,7 +48,8 @@ def augment_gaussian(img, kernel_size=3, sigmaX=0, sigmaY=0):
                      sigmaX=sigmaX, sigmaY=sigmaY)  # No return needed
 
 
-def is_outrange(img, box, padding_ratio=0.01, max_outrange_x=20, max_outrange_y=20):
+#For Buff usage only!!
+def is_outrange(img, box, padding_ratio=0.002, max_outrange_x=30, max_outrange_y=30):
     area_map = []
     for bbox in box:
         x = bbox[0::2]
