@@ -37,7 +37,7 @@ class COCOeval_opt(COCOeval):
             return []
         ious = np.zeros((len(dts), len(gts)))
 
-        sigmas = np.ones((5,1),dtype=np.float32) / 5.0
+        sigmas = np.ones((4,1),dtype=np.float32) / 4.0
         vars = (sigmas * 2)**2
         k = len(sigmas)
         # compute oks between each detection and ground truth object
