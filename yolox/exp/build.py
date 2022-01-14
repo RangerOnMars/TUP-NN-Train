@@ -26,6 +26,7 @@ def get_exp_by_name(exp_name):
     filedict = {
         "nano-poly": "nano-poly.py",
         "nano-polyv2": "nano-polyv2.py",
+        "shufflev2-nano": "shufflev2-nano.py",
         "tiny-poly": "tiny-poly.py",
         "xs-poly": "xs-poly.py",
         "xs-poly-DW": "xs-poly-DW.py",

@@ -7,4 +7,5 @@ from .losses import IOUloss
 from .yolo_fpn import YOLOFPN
 from .yolo_head import YOLOXHead
 from .yolo_pafpn import YOLOPAFPN
+from .shufflev2_pafpn import ShuffleV2PAFPN
 from .yolox import YOLOX
