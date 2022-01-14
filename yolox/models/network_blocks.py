@@ -28,15 +28,18 @@ def get_activation(name="silu", inplace=True):
         raise AttributeError("Unsupported act type: {}".format(name))
     return module
 
-def channel_shuffle(x, groups=2):
-    """Channel Shuffle"""
-    bs, chnls, h, w = x.data.size()
-    if chnls % groups:
-        return x
-    chnls_per_group = chnls // groups
-    x = x.view(bs, groups, chnls_per_group, h, w)
+def channel_shuffle(x: Tensor, groups: int) -> Tensor:
+    batchsize, num_channels, height, width = x.size()
+    channels_per_group = num_channels // groups
+
+    # reshape
+    x = x.view(batchsize, groups, channels_per_group, height, width)
+
     x = torch.transpose(x, 1, 2).contiguous()
-    x = x.view(bs, -1, h, w)
+
+    # flatten
+    x = x.view(batchsize, -1, height, width)
+
     return x
 
 class BaseConv(nn.Module):
