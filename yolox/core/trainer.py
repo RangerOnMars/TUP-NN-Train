@@ -209,7 +209,7 @@ class Trainer:
     def before_epoch(self):
         logger.info("---> start train epoch{}".format(self.epoch + 1))
 
-        if self.epoch > 600:
+        if self.epoch > 300:
             if self.is_distributed:
                 self.model.module.head.use_l1 = True
             else:

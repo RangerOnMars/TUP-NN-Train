@@ -1,7 +1,7 @@
 from torch import nn
 import torch
 
-from .network_blocks import BaseConv, Focus, BaseConv, ShuffleV2DownSampling, ShuffleV2Basic
+from .network_blocks import BaseConv, Focus, DWConv, BaseConv, ShuffleV2DownSampling, ShuffleV2Basic
 
 class Shufflenet(nn.Module):
     def __init__(
@@ -14,13 +14,14 @@ class Shufflenet(nn.Module):
         act="silu",
     ):
         super().__init__()
-        stage_unit_repeat = [3, 7 ,3]
+        # stage_unit_repeat = [3, 7 ,3]
+        stage_unit_repeat = [2, 5 ,2]
         self.out_features = out_features
         base_channels = int(wid_mul * 64)  # 64
         base_depth = max(round(dep_mul * 3), 1)  # 3
 
         self.stem = Focus(3, base_channels, ksize=3, act=act)
-        self.conv1 = BaseConv(base_channels, base_channels * 2, ksize=3, stride=2,act=act)
+        self.conv1 = DWConv(base_channels, base_channels * 2, ksize=3, stride=2,act=act)
 
         self.stage2_list = [ShuffleV2DownSampling(base_channels * 2,base_channels * 4, act=act)]
         for _ in range(stage_unit_repeat[0]):

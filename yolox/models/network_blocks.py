@@ -5,6 +5,7 @@
 import torch
 import torch.nn as nn
 from torch.nn.modules.activation import Hardswish
+from torch import Tensor
 
 
 class SiLU(nn.Module):
@@ -77,7 +78,7 @@ class BaseConv(nn.Module):
 class DWConv(nn.Module):
     """Depthwise Conv + Conv"""
 
-    def __init__(self, in_channels, out_channels, ksize, stride=1, act="silu",no_depth_act=False):
+    def __init__(self, in_channels, out_channels, ksize, stride=1, act="silu",no_depth_act=True):
         super().__init__()
         self.dconv = BaseConv(
             in_channels,
@@ -209,9 +210,10 @@ class CSPLayer(nn.Module):
 class Focus(nn.Module):
     """Focus width and height information into channel space."""
 
-    def __init__(self, in_channels, out_channels, ksize=1, stride=1, act="silu"):
+    def __init__(self, in_channels, out_channels, ksize=1, stride=1, depthwise=False, act="silu"):
         super().__init__()
-        self.conv = BaseConv(in_channels * 4, out_channels, ksize, stride, act=act)
+        Conv = DWConv if depthwise else BaseConv
+        self.conv = Conv(in_channels * 4, out_channels, ksize, stride, act=act)
 
     def forward(self, x):
         # shape of x (b,c,w,h) -> y(b,4c,w/2,h/2)
