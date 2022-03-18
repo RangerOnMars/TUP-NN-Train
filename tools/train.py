@@ -10,9 +10,11 @@ from loguru import logger
 import torch
 import torch.backends.cudnn as cudnn
 
-from yolox.core import Trainer, launch
+from yolox.core import Trainer, TrainerWithTeacher,launch
 from yolox.exp import get_exp
 from yolox.utils import configure_nccl, configure_omp, get_num_devices
+
+from teacher.teacher_model import Teacher
 
 
 def make_parser():
@@ -73,6 +75,14 @@ def make_parser():
         help="Caching imgs to RAM for fast training.",
     )
     parser.add_argument(
+        "-distill",
+        "--distillation",
+        dest="distillation",
+        default=False,
+        action="store_true",
+        help="Use distillation.",
+    )
+    parser.add_argument(
         "-o",
         "--occupy",
         dest="occupy",
@@ -105,14 +115,19 @@ def main(exp, args):
     configure_nccl()
     configure_omp()
     cudnn.benchmark = True
-
-    trainer = Trainer(exp, args)
+    if (args.distillation):
+        trainer = TrainerWithTeacher(exp, args)
+    else:
+        trainer = Trainer(exp, args)
     trainer.train()
 
 
 if __name__ == "__main__":
     args = make_parser().parse_args()
     exp = get_exp(args.exp_file, args.name)
+    #For transfer learning usage
+    if (args.distillation):
+        exp.use_distillation = True
     exp.merge(args.opts)
 
     if not args.experiment_name:

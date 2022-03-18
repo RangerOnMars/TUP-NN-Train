@@ -8,6 +8,7 @@ import time
 from loguru import logger
 import cv2
 import numpy as np
+from teacher.teacher_model import Teacher
 
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -31,14 +32,12 @@ from yolox.utils import (
     synchronize
 )
 
-
 class Trainer:
     def __init__(self, exp, args):
         # init function only defines some basic attr, other attrs like model, optimizer are built in
         # before_train methods.
         self.exp = exp
         self.args = args
-        print(args)
 
         # training related attr
         self.max_epoch = exp.max_epoch
@@ -205,15 +204,16 @@ class Trainer:
         logger.info(
             "Training of experiment is done and the best AP is {:.2f}".format(self.best_ap * 100)
         )
+        self.tblogger.close()
 
     def before_epoch(self):
         logger.info("---> start train epoch{}".format(self.epoch + 1))
 
-        if self.epoch > 300:
+        if self.epoch > self.max_epoch * 0.4:
             if self.is_distributed:
-                self.model.module.head.use_l1 = True
+                self.model.module.head.use_mse = True
             else:
-                self.model.head.use_l1 = True
+                self.model.head.use_mse = True
 
         if self.epoch + 1 == self.max_epoch - self.exp.no_aug_epochs or self.no_aug:
             logger.info("--->No mosaic aug now!")
@@ -229,7 +229,7 @@ class Trainer:
         if self.rank == 0:
             self.tblogger.add_scalar("train/total_loss", self.loss["total_loss"], self.epoch + 1)
             self.tblogger.add_scalar("train/reg_loss", self.loss["reg_loss"], self.epoch + 1)
-            self.tblogger.add_scalar("train/l1_loss", self.loss["l1_loss"], self.epoch + 1)
+            self.tblogger.add_scalar("train/mse_loss", self.loss["mse_loss"], self.epoch + 1)
             self.tblogger.add_scalar("train/conf_loss", self.loss["conf_loss"], self.epoch + 1)
             self.tblogger.add_scalar("train/cls_loss", self.loss["cls_loss"], self.epoch + 1)
             self.tblogger.add_scalar("train/colors_loss", self.loss["colors_loss"], self.epoch + 1)
@@ -359,3 +359,173 @@ class Trainer:
                 self.file_name,
                 ckpt_name,
             )
+
+class TrainerWithTeacher(Trainer):
+    def __init__(self, exp, args):
+        # init function only defines some basic attr, other attrs like model, optimizer are built in
+        # before_train methods.
+        self.exp = exp
+        self.teacher = Teacher()
+        self.teacher_pth = self.exp.teacher_pth
+        self.args = args
+
+        # training related attr
+        self.max_epoch = exp.max_epoch
+        self.amp_training = args.fp16
+        self.scaler = torch.cuda.amp.GradScaler(enabled=args.fp16)
+        self.is_distributed = get_world_size() > 1
+        self.rank = get_rank()
+        self.local_rank = get_local_rank()
+        self.device = "cuda:{}".format(self.local_rank)
+        self.use_model_ema = exp.ema
+
+        # data/dataloader related attr
+        self.data_type = torch.float16 if args.fp16 else torch.float32
+        self.input_size = exp.input_size
+        self.best_ap = 0
+        self.loss = 0
+
+        # metric record
+        self.meter = MeterBuffer(window_size=exp.print_interval)
+        self.file_name = os.path.join(exp.output_dir, args.experiment_name)
+
+        if self.rank == 0:
+            os.makedirs(self.file_name, exist_ok=True)
+
+        setup_logger(
+            self.file_name,
+            distributed_rank=self.rank,
+            filename="train_log.txt",
+            mode="a",
+        )
+    #function for training
+
+    def before_train(self):
+        logger.info("args: {}".format(self.args))
+        logger.info("exp value:\n{}".format(self.exp))
+	    #----------------------Model Creating----------------------#
+        # model related init
+        torch.cuda.set_device(self.local_rank)
+        model = self.exp.get_model()
+        teacher = self.teacher.get_model()
+        logger.info(
+            "Model Summary: {}".format(get_model_info(model, self.exp.test_size))
+        )
+
+        model.to(self.device)
+        teacher.to(self.device)
+
+        # solver related init
+        self.optimizer = self.exp.get_optimizer(self.args.batch_size)
+
+        # value of epoch will be set in `resume_train`
+        model = self.resume_train(model)
+
+        ckpt = torch.load(self.teacher_pth, map_location=self.device)
+        teacher.load_state_dict(ckpt["model"])
+
+        # data related init
+        self.no_aug = self.start_epoch >= self.max_epoch - self.exp.no_aug_epochs
+        self.train_loader = self.exp.get_data_loader(
+            batch_size=self.args.batch_size,
+            is_distributed=self.is_distributed,
+            no_aug=self.no_aug,
+            cache_img=self.args.cache,
+        )
+        logger.info("init prefetcher, this might take one minute or less...")
+        #Load Images
+        self.prefetcher = DataPrefetcher(self.train_loader)
+        # max_iter means iters per epoch
+        self.max_iter = len(self.train_loader)
+
+        self.lr_scheduler = self.exp.get_lr_scheduler(
+            self.exp.basic_lr_per_img * self.args.batch_size, self.max_iter
+        )
+        if self.args.occupy:
+            occupy_mem(self.local_rank)
+
+        if self.is_distributed:
+            model = DDP(model, device_ids=[self.local_rank], broadcast_buffers=False)
+
+        if self.use_model_ema:
+            self.ema_model = ModelEMA(model, 0.9998)
+            self.ema_model.updates = self.max_iter * self.start_epoch
+
+        self.model = model
+        self.teacher = teacher
+        #Set model as trainable
+        self.model.train()
+        #Get evaluator
+        self.evaluator = self.exp.get_evaluator(
+            batch_size=self.args.batch_size, is_distributed=self.is_distributed
+        )
+        # Tensorboard logger
+        if self.rank == 0:
+            self.tblogger = SummaryWriter(self.file_name)
+
+        logger.info("Training start...")
+        logger.info("\n{}".format(self.model))
+
+    # Train for one iter
+    def train_one_iter(self):
+        iter_start_time = time.time()
+        #images,
+        inps, targets = self.prefetcher.next()
+        inps = inps.to(self.data_type)
+        # print(targets)
+        targets = targets.to(self.data_type)
+        targets.requires_grad = False
+        inps, targets = self.exp.preprocess(inps, targets, self.input_size)
+
+        self.teacher.training = False
+        self.teacher.head.training = False
+        self.teacher.head.decode_in_inference = True
+
+        self.model.head.use_distill = True
+        self.model.head.training = True
+
+        data_end_time = time.time()
+        with torch.cuda.amp.autocast(enabled=self.amp_training):
+            targets = self.teacher(inps)
+        targets = targets.detach()
+        # targets = targets.transpose()
+
+        # src = np.array(inps[0].cpu(),dtype=np.uint8)
+        # src = src.transpose((1,2,0))
+        # mask = targets[0][:,8] > 0.3
+        # tmp = targets[0][mask]
+        # targets1=np.array(tmp.cpu(),dtype=np.int16)
+        # src = src.copy()
+        # for target in targets1:
+        #     cv2.line(src, tuple(np.array(target[0:2])), tuple(np.array(target[2:4])), (0,255,0), 1)
+        #     cv2.line(src, tuple(np.array(target[2:4])), tuple(np.array(target[4:6])), (0,255,0),1)
+        #     cv2.line(src, tuple(np.array(target[4:6])), tuple(np.array(target[6:8])), (0,255,0),1)
+        #     cv2.line(src, tuple(np.array(target[6:8])), tuple(np.array(target[0:2])), (0,255,0),1)
+        # cv2.imshow("inps",src)
+        # cv2.waitKey(0)
+
+        with torch.cuda.amp.autocast(enabled=self.amp_training):
+            outputs = self.model(inps, targets)
+
+        loss = outputs["total_loss"]
+        self.loss = outputs
+
+        self.optimizer.zero_grad()
+        self.scaler.scale(loss).backward()
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+
+        if self.use_model_ema:
+            self.ema_model.update(self.model)
+
+        lr = self.lr_scheduler.update_lr(self.progress_in_iter + 1)
+        for param_group in self.optimizer.param_groups:
+            param_group["lr"] = lr
+
+        iter_end_time = time.time()
+        self.meter.update(
+            iter_time=iter_end_time - iter_start_time,
+            data_time=data_end_time - iter_start_time,
+            lr=lr,
+            **outputs,
+        )

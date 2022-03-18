@@ -170,7 +170,7 @@ class MosaicDetection(Dataset):
 
     def mixup(self, origin_img, origin_labels, input_dim):
         jit_factor = random.uniform(*self.mixup_scale)
-        FLIP = random.uniform(0, 1) > 0.5
+        # FLIP = random.uniform(0, 1) > 0.5
         cp_labels = []
         while len(cp_labels) == 0:
             cp_index = random.randint(0, self.__len__() - 1)
@@ -199,8 +199,8 @@ class MosaicDetection(Dataset):
         )
         cp_scale_ratio *= jit_factor
 
-        if FLIP:
-            cp_img = cp_img[:, ::-1, :]
+        # if FLIP:
+        #     cp_img = cp_img[:, ::-1, :]
 
         origin_h, origin_w = cp_img.shape[:2]
         target_h, target_w = origin_img.shape[:2]
@@ -221,10 +221,10 @@ class MosaicDetection(Dataset):
         cp_bboxes_origin_np = adjust_box_anns(
             cp_labels[:, :4].copy(), cp_scale_ratio, 0, 0, origin_w, origin_h
         )
-        if FLIP:
-            cp_bboxes_origin_np[:, 0::2] = (
-                origin_w - cp_bboxes_origin_np[:, 0::2][:, ::-1]
-            )
+        # if FLIP:
+        #     cp_bboxes_origin_np[:, 0::2] = (
+        #         origin_w - cp_bboxes_origin_np[:, 0::2][:, ::-1]
+        #     )
         cp_bboxes_transformed_np = cp_bboxes_origin_np.copy()
         cp_bboxes_transformed_np[:, 0::2] = np.clip(
             cp_bboxes_transformed_np[:, 0::2] - x_offset, 0, target_w

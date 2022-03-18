@@ -15,7 +15,9 @@ from .base_exp import BaseExp
 class Exp(BaseExp):
     def __init__(self):
         super().__init__()
-
+        # ---------------- transfer learning config ---------------- #
+        self.use_distillation  = False
+        self.teacher_pth = "/home/rangeronmars/AI/TUP-NN-Train/teacher/teacher.pth"
         # ---------------- model config ---------------- #
         self.num_classes = 8
         self.num_colors = 3
@@ -26,8 +28,8 @@ class Exp(BaseExp):
 
         # ---------------- dataloader config ---------------- #
         # set worker to 4 for shorter dataloader init time
-        self.data_num_workers = 4
-        self.input_size = (384,640)  # (height, width)
+        self.data_num_workers = 8
+        self.input_size = (416,416)  # (height, width)
         # Actual multiscale ranges: [640-5*32, 640+5*32].
         # To disable multiscale training, set the
         # self.multiscale_range to 0.
@@ -40,7 +42,7 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.6
+        self.mosaic_prob = 0.9
         self.mosaic_scale = (0.5, 1.5)
         #Mixup
         self.enable_mixup = False
@@ -49,7 +51,7 @@ class Exp(BaseExp):
         #HSV
         self.hsv_prob = 0.8
         #Gaussian Blur
-        self.gaussian_prob = 0.2
+        self.gaussian_prob = 0.01
         #Flip 
         self.flip_prob = 0.0
         #Affine
@@ -65,7 +67,7 @@ class Exp(BaseExp):
         self.warmup_lr = 0
         self.basic_lr_per_img = 0.01 / 640
         self.scheduler = "yoloxwarmcos"
-        self.no_aug_epochs = 200
+        self.no_aug_epochs = 300
         self.min_lr_ratio = 0.06
         self.ema = True
 
@@ -78,7 +80,7 @@ class Exp(BaseExp):
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
         # -----------------  testing config ------------------ #
-        self.test_size = (384,640)
+        self.test_size = (416,416)
         self.test_conf = 0.25
         self.nmsthre = 0.3
 

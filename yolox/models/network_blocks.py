@@ -4,8 +4,8 @@
 
 import torch
 import torch.nn as nn
-from torch.nn.modules.activation import Hardswish
-from torch import Tensor
+
+from .coord_conv import CoordConv
 
 
 class SiLU(nn.Module):
@@ -29,18 +29,15 @@ def get_activation(name="silu", inplace=True):
         raise AttributeError("Unsupported act type: {}".format(name))
     return module
 
-def channel_shuffle(x: Tensor, groups: int) -> Tensor:
-    batchsize, num_channels, height, width = x.size()
-    channels_per_group = num_channels // groups
-
-    # reshape
-    x = x.view(batchsize, groups, channels_per_group, height, width)
-
+def channel_shuffle(x, groups=2):
+    """Channel Shuffle"""
+    bs, chnls, h, w = x.data.size()
+    if chnls % groups:
+        return x
+    chnls_per_group = chnls // groups
+    x = x.view(bs, groups, chnls_per_group, h, w)
     x = torch.transpose(x, 1, 2).contiguous()
-
-    # flatten
-    x = x.view(batchsize, -1, height, width)
-
+    x = x.view(bs, -1, h, w)
     return x
 
 class BaseConv(nn.Module):
@@ -206,7 +203,6 @@ class CSPLayer(nn.Module):
         x = torch.cat((x_1, x_2), dim=1)
         return self.conv3(x)
 
-
 class Focus(nn.Module):
     """Focus width and height information into channel space."""
 
@@ -271,4 +267,4 @@ class ShuffleV2Basic(nn.Module):
 
         x = torch.cat((x_l, out_r), dim=1)
 
-        return channel_shuffle(x,self.groups) 
+        return channel_shuffle(x,self.groups)

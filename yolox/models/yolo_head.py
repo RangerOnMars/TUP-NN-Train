@@ -146,9 +146,12 @@ class YOLOXHead(nn.Module):
                 )
             )
 
-        self.use_l1 = False
-        self.l1_loss = nn.L1Loss(reduction="none")
+        self.use_mse = False
+        self.use_distill = False
+        self.mse_loss = nn.MSELoss(reduction="none")
         self.bcewithlog_loss = nn.BCEWithLogitsLoss(reduction="none")
+        self.log_softmax = nn.LogSoftmax(dim="1")
+        self.cross_entropy = nn.CrossEntropyLoss(reduction="none")
         self.mse = nn.MSELoss(reduction="none")
         # self.iou_loss = PolyIOUloss(reduction="sum", loss_type="giou")
         self.wing_loss = WingLoss()
@@ -177,14 +180,12 @@ class YOLOXHead(nn.Module):
         x_shifts = []
         y_shifts = []
         expanded_strides = []
-
         for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
             zip(self.cls_convs, self.reg_convs, self.strides, xin)
         ): 
             x = self.stems[k](x)
             cls_x = x
             reg_x = x
-
             cls_feat = cls_conv(cls_x)
             cls_output = self.cls_preds[k](cls_feat)
             color_output = self.color_preds[k](cls_feat)
@@ -205,7 +206,7 @@ class YOLOXHead(nn.Module):
                     .fill_(stride_this_level)
                     .type_as(xin[0])
                 )
-                if self.use_l1:
+                if self.use_mse:
                     batch_size = reg_output.shape[0]
                     hsize, wsize = reg_output.shape[-2:]
                     reg_output = reg_output.view(
@@ -222,18 +223,29 @@ class YOLOXHead(nn.Module):
                 )
 
             outputs.append(output)
-
         if self.training:
-            return self.get_losses(
-                imgs,
-                x_shifts,
-                y_shifts,
-                expanded_strides,
-                labels,
-                torch.cat(outputs, 1),
-                origin_preds,
-                dtype=xin[0].dtype,
-            )
+            if not self.use_distill:
+                return self.get_losses(
+                    imgs,
+                    x_shifts,
+                    y_shifts,
+                    expanded_strides,
+                    labels,
+                    torch.cat(outputs, 1),
+                    origin_preds,
+                    dtype=xin[0].dtype,
+                )
+            else:
+                return self.get_losses_distill(
+                    imgs,
+                    x_shifts,
+                    y_shifts,
+                    expanded_strides,
+                    labels,
+                    torch.cat(outputs, 1),
+                    origin_preds,
+                    dtype=xin[0].dtype,
+                )
         else:
             self.hw = [x.shape[-2:] for x in outputs]
             # [batch, n_anchors_all, 85]
@@ -284,6 +296,75 @@ class YOLOXHead(nn.Module):
             outputs[..., 2 * i:2 * (i + 1)] = (outputs[..., 2 * i:2 * (i + 1)] + grids) * strides
         return outputs
 
+    def get_losses_distill(
+        self,
+        imgs,
+        x_shifts,
+        y_shifts,
+        expanded_strides,
+        labels,
+        outputs,
+        origin_preds,
+        dtype,
+    ):
+
+        # # Cut feature map into bbox,obj,color,cls
+        bbox_preds = outputs[:, :, :self.num_apexes * 2].contiguous()  # [batch, n_anchors_all, self.num_apexes * 2]
+        obj_preds = outputs[:, :, self.num_apexes * 2].contiguous()  # [batch, n_anchors_all, 1]
+        color_preds = outputs[:, :, self.num_apexes * 2 + 1:self.num_apexes * 2 + 1 + self.num_colors].contiguous()  # [batch, n_anchors_all, n_color]
+        cls_preds = outputs[:, :, self.num_apexes * 2 + 1 + self.num_colors:].contiguous()  # [batch, n_anchors_all, n_cls]
+
+        bbox_teacher = labels[:, :, :self.num_apexes * 2].contiguous()  # [batch, n_anchors_all, self.num_apexes * 2]
+        obj_teacher = labels[:, :, self.num_apexes * 2].contiguous()  # [batch, n_anchors_all, 1]
+        color_teacher = labels[:, :, self.num_apexes * 2 + 1:self.num_apexes * 2 + 1 + self.num_colors].contiguous()  # [batch, n_anchors_all, n_color]
+        cls_teacher = labels[:, :, self.num_apexes * 2 + 1 + self.num_colors:].contiguous()  # [batch, n_anchors_all, n_cls]
+
+        gt_mask = (obj_teacher > 0.3)
+        num_postive = (obj_teacher).sum()
+
+
+        loss_reg = (
+        self.wing_loss(bbox_preds, bbox_teacher)
+        ).sum()  / num_postive
+
+        loss_obj = (
+            self.bcewithlog_loss(obj_preds, obj_teacher)
+        ).sum()  / num_postive
+
+        loss_cls = (
+            self.bcewithlog_loss(cls_preds[gt_mask].view(-1, self.num_classes), cls_teacher[gt_mask].view(-1, self.num_classes))
+        ).sum() / num_postive
+
+        loss_colors = (
+            self.bcewithlog_loss(
+                color_preds[gt_mask].view(-1, self.num_colors), color_teacher[gt_mask].view(-1, self.num_colors)
+            )
+        ).sum() / num_postive
+
+        if self.use_mse:
+            loss_mse = (
+                self.mse_loss(bbox_preds, bbox_teacher)
+            ).sum()
+        else:
+            loss_mse = 0.0
+
+        reg_weight = 100
+        conf_weight = 1
+        clr_weight = 1
+        cls_weight = 1
+        loss = reg_weight * loss_reg + conf_weight * loss_obj + cls_weight * loss_cls  + clr_weight * loss_colors + 2 * loss_mse
+
+        return (
+            loss,
+            reg_weight * loss_reg,
+            conf_weight * loss_obj,
+            cls_weight * loss_cls,
+            clr_weight * loss_colors,
+            2 * loss_mse,
+            1,
+        )
+
+
     def get_losses(
         self,
         imgs,
@@ -307,13 +388,13 @@ class YOLOXHead(nn.Module):
         x_shifts = torch.cat(x_shifts, 1)  # [1, n_anchors_all]
         y_shifts = torch.cat(y_shifts, 1)  # [1, n_anchors_all]
         expanded_strides = torch.cat(expanded_strides, 1)
-        if self.use_l1:
+        if self.use_mse:
             origin_preds = torch.cat(origin_preds, 1)
 
         cls_targets = []
         colors_targets = []
         reg_targets = []
-        l1_targets = []
+        mse_targets = []
         obj_targets = []
         fg_masks = []
 
@@ -328,7 +409,7 @@ class YOLOXHead(nn.Module):
                 cls_target = outputs.new_zeros((0, self.num_classes))
                 colors_target = outputs.new_zeros((0, self.num_colors))
                 reg_target = outputs.new_zeros((0, self.num_apexes * 2))
-                l1_target = outputs.new_zeros((0, self.num_apexes * 2))
+                mse_target = outputs.new_zeros((0, self.num_apexes * 2))
                 obj_target = outputs.new_zeros((total_num_anchors, 1))
                 fg_mask = outputs.new_zeros(total_num_anchors).bool()
             else:
@@ -414,8 +495,8 @@ class YOLOXHead(nn.Module):
                 obj_target = fg_mask.unsqueeze(-1)
                 # print(obj_target.shape)
                 reg_target = gt_bboxes_per_image[matched_gt_inds]
-                if self.use_l1:
-                    l1_target = self.get_l1_target(
+                if self.use_mse:
+                    mse_target = self.get_mse_target(
                         outputs.new_zeros((num_fg_img, self.num_apexes * 2)),
                         gt_bboxes_per_image[matched_gt_inds],
                         expanded_strides[0][fg_mask],
@@ -429,19 +510,18 @@ class YOLOXHead(nn.Module):
             reg_targets.append(reg_target)
             obj_targets.append(obj_target.to(dtype))
             fg_masks.append(fg_mask)
-            if self.use_l1:
-                l1_targets.append(l1_target)
+            if self.use_mse:
+                mse_targets.append(mse_target)
 
         cls_targets = torch.cat(cls_targets, 0)
         colors_targets = torch.cat(colors_targets, 0)
         reg_targets = torch.cat(reg_targets, 0)
         obj_targets = torch.cat(obj_targets, 0)
         fg_masks = torch.cat(fg_masks, 0)
-        if self.use_l1:
-            l1_targets = torch.cat(l1_targets, 0)
+        if self.use_mse:
+            mse_targets = torch.cat(mse_targets, 0)
         num_fg = max(num_fg, 1)
 
-        
         # loss_reg = (
         #     self.mse(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
         # ).sum() / num_fg
@@ -465,18 +545,18 @@ class YOLOXHead(nn.Module):
             )
         ).sum() / num_fg
 
-        if self.use_l1:
-            loss_l1 = (
-                self.l1_loss(origin_preds.view(-1, self.num_apexes * 2)[fg_masks], l1_targets)
+        if self.use_mse:
+            loss_mse = (
+                self.mse_loss(origin_preds.view(-1, self.num_apexes * 2)[fg_masks], mse_targets)
             ).sum() / num_fg
         else:
-            loss_l1 = 0.0
+            loss_mse = 0.0
 
-        reg_weight = 3
+        reg_weight = 100
         conf_weight = 1
         clr_weight = 1
         cls_weight = 1
-        loss = reg_weight * loss_reg + conf_weight * loss_obj + cls_weight * loss_cls  + clr_weight * loss_colors + loss_l1
+        loss = reg_weight * loss_reg + conf_weight * loss_obj + cls_weight * loss_cls  + clr_weight * loss_colors + 2 * loss_mse
 
         return (
             loss,
@@ -484,15 +564,16 @@ class YOLOXHead(nn.Module):
             conf_weight * loss_obj,
             cls_weight * loss_cls,
             clr_weight * loss_colors,
-            loss_l1,
+            loss_mse,
             num_fg / max(num_gts, 1),
         )
 
-    def get_l1_target(self, l1_target, gt, stride, x_shifts, y_shifts, eps=1e-8):
+    # def get_losses_transfer_learning:():
+    def get_mse_target(self, mse_target, gt, stride, x_shifts, y_shifts, eps=1e-8):
         for i in range(self.num_apexes):
-            l1_target[:, 2 * i] = gt[:, 2 * i] / stride - x_shifts
-            l1_target[:, 2 * i + 1] = gt[:,2 * i + 1] / stride - y_shifts
-        return l1_target
+            mse_target[:, 2 * i] = gt[:, 2 * i] / stride - x_shifts
+            mse_target[:, 2 * i + 1] = gt[:,2 * i + 1] / stride - y_shifts
+        return mse_target
 
     @torch.no_grad()
     def get_assignments(
