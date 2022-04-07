@@ -20,7 +20,7 @@ class Exp(BaseExp):
         self.teacher_pth = "/home/rangeronmars/AI/TUP-NN-Train/teacher/teacher.pth"
         # ---------------- model config ---------------- #
         self.num_classes = 8
-        self.num_colors = 3
+        self.num_colors = 4
         self.num_apexes = 4
         self.depth = 1.00
         self.width = 1.00
@@ -49,7 +49,7 @@ class Exp(BaseExp):
         self.mixup_prob = 0.0
         self.mixup_scale = (0.5, 1.5)
         #HSV
-        self.hsv_prob = 0.8
+        self.hsv_prob = 1.0
         #Gaussian Blur
         self.gaussian_prob = 0.01
         #Flip 

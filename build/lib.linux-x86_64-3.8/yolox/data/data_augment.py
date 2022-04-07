@@ -18,7 +18,7 @@ import numpy as np
 from yolox.utils import xyxy2cxcywh
 
 
-def augment_hsv(img, hgain=0.015, sgain=0.7, vgain=0.4):
+def augment_hsv(img, hgain=0.03, sgain=0.3, vgain=0.5):
     r = np.random.uniform(-1, 1, 3) * [hgain, sgain, vgain] + 1  # random gains
     hue, sat, val = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
     dtype = img.dtype  # uint8

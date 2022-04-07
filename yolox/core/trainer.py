@@ -211,9 +211,9 @@ class Trainer:
 
         if self.epoch > self.max_epoch * 0.4:
             if self.is_distributed:
-                self.model.module.head.use_mse = True
+                self.model.module.head.use_l1 = True
             else:
-                self.model.head.use_mse = True
+                self.model.head.use_l1 = True
 
         if self.epoch + 1 == self.max_epoch - self.exp.no_aug_epochs or self.no_aug:
             logger.info("--->No mosaic aug now!")
@@ -229,7 +229,7 @@ class Trainer:
         if self.rank == 0:
             self.tblogger.add_scalar("train/total_loss", self.loss["total_loss"], self.epoch + 1)
             self.tblogger.add_scalar("train/reg_loss", self.loss["reg_loss"], self.epoch + 1)
-            self.tblogger.add_scalar("train/mse_loss", self.loss["mse_loss"], self.epoch + 1)
+            self.tblogger.add_scalar("train/l1_loss", self.loss["l1_loss"], self.epoch + 1)
             self.tblogger.add_scalar("train/conf_loss", self.loss["conf_loss"], self.epoch + 1)
             self.tblogger.add_scalar("train/cls_loss", self.loss["cls_loss"], self.epoch + 1)
             self.tblogger.add_scalar("train/colors_loss", self.loss["colors_loss"], self.epoch + 1)

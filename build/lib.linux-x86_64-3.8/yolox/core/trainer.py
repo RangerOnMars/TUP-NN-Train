@@ -46,6 +46,7 @@ class Trainer:
         self.local_rank = get_local_rank()
         self.device = "cuda:{}".format(self.local_rank)
         self.use_model_ema = exp.ema
+        self.use_transfer_learning = exp.use_transfer_learning
 
         # data/dataloader related attr
         self.data_type = torch.float16 if args.fp16 else torch.float32
@@ -191,11 +192,11 @@ class Trainer:
         if self.epoch + 1 == self.max_epoch - self.exp.no_aug_epochs or self.no_aug:
             logger.info("--->No mosaic aug now!")
             self.train_loader.close_mosaic()
-            logger.info("--->Add additional L1 loss now!")
+            logger.info("--->Add additional mse loss now!")
             if self.is_distributed:
-                self.model.module.head.use_l1 = True
+                self.model.module.head.use_mse = True
             else:
-                self.model.head.use_l1 = True
+                self.model.head.use_mse = True
             self.exp.eval_interval = 1
             if not self.no_aug:
                 self.save_ckpt(ckpt_name="last_mosaic_epoch")
