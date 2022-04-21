@@ -461,7 +461,7 @@ class TrainerWithTeacher(Trainer):
         )
         # Tensorboard logger
         if self.rank == 0:
-            self.tblogger = SummaryWriter(self.file_name)
+            self.tblogger = SummaryWriter(self.file_name, comment="")
 
         logger.info("Training start...")
         logger.info("\n{}".format(self.model))

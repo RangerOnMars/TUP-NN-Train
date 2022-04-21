@@ -236,7 +236,7 @@ class ShuffleV2DownSampling(nn.Module):
 
         self.dwconv_l = DWConv(in_channels,in_channels,ksize=3,stride=2,act=act,no_depth_act=True)
         self.conv_r1 = BaseConv(in_channels,in_channels,ksize=1,stride=1,act=act)
-        self.dwconv_r=DWConv(in_channels,in_channels,ksize=3,stride=2,act=act,no_depth_act=True)
+        self.dwconv_r = DWConv(in_channels,in_channels,ksize=3,stride=2,act=act,no_depth_act=True)
     def forward(self, x):
         out_l = self.dwconv_l(x)
 

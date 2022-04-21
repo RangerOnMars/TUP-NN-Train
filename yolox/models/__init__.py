@@ -9,5 +9,6 @@ from .yolo_fpn import YOLOFPN
 from .yolo_head import YOLOXHead
 from .yolo_pafpn import YOLOPAFPN
 from .shufflev2_pafpn import ShuffleV2PAFPN
+from .shufflev2_GhostPAN import ShuffleV2GhostPAN
 from .yolox import YOLOX
 from .yolo_GhostPAN import YOLOGhostPAN

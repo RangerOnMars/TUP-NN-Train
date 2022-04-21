@@ -149,7 +149,7 @@ class COCOEvaluator:
                     outputs_rect,
                     outputs_poly,
                     self.num_apexes,
-                    (self.num_classes - 1) * (self.num_colors - 1),
+                    self.num_classes * self.num_colors,
                     self.confthre,
                     self.nmsthre
                 )

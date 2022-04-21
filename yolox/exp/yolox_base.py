@@ -33,7 +33,7 @@ class Exp(BaseExp):
         # Actual multiscale ranges: [640-5*32, 640+5*32].
         # To disable multiscale training, set the
         # self.multiscale_range to 0.
-        self.multiscale_range = 5
+        # self.multiscale_range = 5
         # You can uncomment this line to specify a multiscale range
         # self.random_size = (14, 26)
         self.data_dir = "TUP-Armor-Dataset"
@@ -42,7 +42,7 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.9
+        self.mosaic_prob = 0.95
         self.mosaic_scale = (0.5, 1.5)
         #Mixup
         self.enable_mixup = False
@@ -63,11 +63,11 @@ class Exp(BaseExp):
         # --------------  training config --------------------- #
         #For Using SGD+Momentum
         self.warmup_epochs = 40
-        self.max_epoch = 1500
+        self.max_epoch = 700
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 640
+        self.basic_lr_per_img = 0.01 / 960
         self.scheduler = "yoloxwarmcos"
-        self.no_aug_epochs = 300
+        self.no_aug_epochs = 30
         self.min_lr_ratio = 0.06
         self.ema = True
 

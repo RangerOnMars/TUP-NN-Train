@@ -7,29 +7,30 @@ import torch.nn as nn
 
 from .darknet import CSPDarknet
 from .network_blocks import BaseConv, CSPLayer, DWConv
+from .shufflenetv2 import Shufflenet
 from .ghost_pan import GhostPAN
 
 
-class YOLOGhostPAN(nn.Module):
+
+class ShuffleV2GhostPAN(nn.Module):
     """
-    YOLOX with GhostPAN from Nanodet. Darknet 53 is the default backbone of this model.
+    YOLOv3 model. Darknet 53 is the default backbone of this model.
     """
 
     def __init__(
         self,
         depth=1.0,
         width=1.0,
-        in_features=("dark3", "dark4", "dark5"),
+        in_features=("stage2", "stage3", "stage4"),
         in_channels=[256, 512, 1024],
         depthwise=False,
         act="silu",
-    ):  
+    ):
         super().__init__()
-        self.backbone = CSPDarknet(depth, width, depthwise=depthwise, act=act)
+        self.backbone = Shufflenet(depth, width, act=act)
         self.in_features = in_features
         self.in_channels = [round(in_channels[0] * width), round(in_channels[1] * width), round(in_channels[2] * width)]
         self.out_channels = self.in_channels[0]
-        # print(self.out_channels)
         Conv = DWConv if depthwise else BaseConv
         self.neck = GhostPAN(self.in_channels, self.out_channels, depthwise, activation=act)
 
@@ -46,6 +47,9 @@ class YOLOGhostPAN(nn.Module):
         out_features = self.backbone(input)
         features = [out_features[f] for f in self.in_features]
         [x2, x1, x0] = features
+        # print("x2",x2.shape)
+        # print("x1",x1.shape)
+        # print("x0",x0.shape)
 
         outputs = self.neck([x2,x1,x0])
         return outputs

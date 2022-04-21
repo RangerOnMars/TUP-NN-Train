@@ -118,8 +118,6 @@ class GhostPAN(nn.Module):
 
         # conv = DepthwiseConvModule if use_depthwise else ConvModule
         Conv = DWConv if use_depthwise else BaseConv
-
-
         # build top-down blocks
         self.upsample = nn.Upsample(**upsample_cfg)
         self.reduce_layers = nn.ModuleList()

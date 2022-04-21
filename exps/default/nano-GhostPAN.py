@@ -17,7 +17,7 @@ class Exp(MyExp):
         self.width = 0.25
         self.scale = (0.5, 1.5)
         self.random_size = (10, 16)
-        self.test_size = (384, 640)
+        self.test_size = (416, 416)
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
         self.enable_mixup = False
     def get_model(self, sublinear=False):
@@ -30,7 +30,7 @@ class Exp(MyExp):
         if "model" not in self.__dict__:
             from yolox.models import YOLOX,YOLOGhostPAN,YOLOXHead
             in_channels = [256, 512, 1024]
-            in_channels_head = [round(1024 * self.width), round(1024 * self.width), round(1024 * self.width)]
+            in_channels_head = [256, 256, 256]
             # NANO model use depthwise = True, which is main difference.
             backbone = YOLOGhostPAN(self.depth, self.width, in_channels=in_channels, depthwise=True, act=self.act)
             head = YOLOXHead(self.num_apexes, self.num_classes, self.num_colors, self.width, in_channels=in_channels_head, depthwise=True, act=self.act)

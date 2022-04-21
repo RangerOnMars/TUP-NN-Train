@@ -43,6 +43,7 @@ def make_parser():
     parser.add_argument("-expn", "--experiment-name", type=str, default=None)
     parser.add_argument("-n", "--name", type=str, default=None, help="model name")
     parser.add_argument("-c", "--ckpt", default=None, type=str, help="ckpt path")
+    # parser.add_argument("-d", "--decode", action="store_true", help="Decode.")
     parser.add_argument(
         "opts",
         help="Modify config options using the command-line",

@@ -52,19 +52,22 @@ class YOLOXHead(nn.Module):
         self.color_preds = nn.ModuleList()
         self.reg_preds = nn.ModuleList()
         self.obj_preds = nn.ModuleList()
+        self.in_channels = [int(in_channels[0] * width), int(in_channels[1] * width), int(in_channels[2] * width)]
+        self.out_channels = [int(256 * width), int(256 * width), int(256 * width)]
         self.stems = nn.ModuleList()
         Conv = DWConv if depthwise else BaseConv
         #
         for i in range(len(in_channels)):
-            self.stems.append(
-                BaseConv(
-                    in_channels=int(in_channels[i] * width),
-                    out_channels=int(256 * width),
-                    ksize=1,
-                    stride=1,
-                    act=act,
+            if (self.in_channels != self.out_channels):
+                self.stems.append(
+                    BaseConv(
+                        in_channels=int(in_channels[i] * width),
+                        out_channels=int(256 * width),
+                        ksize=1,
+                        stride=1,
+                        act=act,
+                    )
                 )
-            )
             #Building Classification Convolution Layer
             self.cls_convs.append(
                 nn.Sequential(
@@ -183,8 +186,9 @@ class YOLOXHead(nn.Module):
         expanded_strides = []
         for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
             zip(self.cls_convs, self.reg_convs, self.strides, xin)
-        ): 
-            x = self.stems[k](x)
+        ):
+            if (self.in_channels != self.out_channels):
+                x = self.stems[k](x)
             cls_x = x
             reg_x = x
             cls_feat = cls_conv(cls_x)
@@ -312,7 +316,7 @@ class YOLOXHead(nn.Module):
         # # Cut feature map into bbox,obj,color,cls
         bbox_preds = outputs[:, :, :self.num_apexes * 2].contiguous()  # [batch, n_anchors_all, self.num_apexes * 2]
         obj_preds = outputs[:, :, self.num_apexes * 2].contiguous()  # [batch, n_anchors_all, 1]
-        color_preds = outputs[:, :, self.num_apexes * 2 + 1:self.num_apexes * 2 + 1 + self.num_colors].contiguous()  # [batch, n_anchors_all, n_color]
+        color_preds = outputs[:, :, self.num_apexes * 2 + 1 :self.num_apexes * 2 + 1 + self.num_colors].contiguous()  # [batch, n_anchors_all, n_color]
         cls_preds = outputs[:, :, self.num_apexes * 2 + 1 + self.num_colors:].contiguous()  # [batch, n_anchors_all, n_cls]
 
         bbox_teacher = labels[:, :, :self.num_apexes * 2].contiguous()  # [batch, n_anchors_all, self.num_apexes * 2]
@@ -391,6 +395,10 @@ class YOLOXHead(nn.Module):
 
         # Calculate targets
         nlabel = (labels.sum(dim=2) > 0).sum(dim=1)  # number of objects
+        # print("+++")
+        # print(nlabel)
+        # print("---")
+        # print(outputs.shape)
         total_num_anchors = outputs.shape[1]
         x_shifts = torch.cat(x_shifts, 1)  # [1, n_anchors_all]
         y_shifts = torch.cat(y_shifts, 1)  # [1, n_anchors_all]
@@ -429,66 +437,91 @@ class YOLOXHead(nn.Module):
                 #Generate rect bbox for apexs
                 gt_rect_bboxes_per_image = min_rect(gt_bboxes_per_image)
                 rect_bboxes_preds_per_image = min_rect(bboxes_preds_per_image)
+                (
+                    gt_matched_classes,
+                    gt_matched_colors,
+                    fg_mask,
+                    pred_ious_this_matching,
+                    matched_gt_inds,
+                    num_fg_img,
+                ) = self.get_assignments(
+                    batch_idx,              #Batch
+                    num_gt,                 #Number of ground true
+                    total_num_anchors,      #Total number of anchors
+                    gt_rect_bboxes_per_image,    #Ground True classes per image
+                    gt_classes,             #Ground True classes
+                    gt_colors,
+                    rect_bboxes_preds_per_image,
+                    expanded_strides,
+                    x_shifts,
+                    y_shifts,
+                    cls_preds,
+                    color_preds,
+                    bbox_preds,
+                    obj_preds,
+                    labels,
+                    imgs,
+                )
                 #TODO: Fix SimOTA
-                try:
-                    (
-                        gt_matched_classes,
-                        gt_matched_colors,
-                        fg_mask,
-                        pred_ious_this_matching,
-                        matched_gt_inds,
-                        num_fg_img,
-                    ) = self.get_assignments(
-                        batch_idx,              #Batch
-                        num_gt,                 #Number of ground true
-                        total_num_anchors,      #Total number of anchors
-                        gt_rect_bboxes_per_image,    #Ground True classes per image
-                        gt_classes,             #Ground True classes
-                        gt_colors,
-                        rect_bboxes_preds_per_image,
-                        expanded_strides,
-                        x_shifts,
-                        y_shifts,
-                        cls_preds,
-                        color_preds,
-                        bbox_preds,
-                        obj_preds,
-                        labels,
-                        imgs,
-                    )
-                except RuntimeError:
-                    logger.error(
-                        "OOM RuntimeError is raised due to the huge memory cost during label assignment. \
-                           CPU mode is applied in this batch. If you want to avoid this issue, \
-                           try to reduce the batch size or image size."
-                    )
-                    # torch.cuda.empty_cache()
-                    (
-                        gt_matched_classes,
-                        gt_matched_colors,
-                        fg_mask,
-                        pred_ious_this_matching,
-                        matched_gt_inds,
-                        num_fg_img,
-                    ) = self.get_assignments(
-                        batch_idx,              #Batch
-                        num_gt,                 #Number of ground true
-                        total_num_anchors,      #Total number of anchors
-                        gt_rect_bboxes_per_image,    #Ground True classes per image
-                        gt_classes,             #Ground True classes
-                        gt_colors,
-                        rect_bboxes_preds_per_image,
-                        expanded_strides,
-                        x_shifts,
-                        y_shifts,
-                        cls_preds,
-                        color_preds,
-                        bbox_preds,
-                        obj_preds,
-                        labels,
-                        imgs,
-                        "cpu",
-                    )
+                # try:
+                #     (
+                #         gt_matched_classes,
+                #         gt_matched_colors,
+                #         fg_mask,
+                #         pred_ious_this_matching,
+                #         matched_gt_inds,
+                #         num_fg_img,
+                #     ) = self.get_assignments(
+                #         batch_idx,              #Batch
+                #         num_gt,                 #Number of ground true
+                #         total_num_anchors,      #Total number of anchors
+                #         gt_rect_bboxes_per_image,    #Ground True classes per image
+                #         gt_classes,             #Ground True classes
+                #         gt_colors,
+                #         rect_bboxes_preds_per_image,
+                #         expanded_strides,
+                #         x_shifts,
+                #         y_shifts,
+                #         cls_preds,
+                #         color_preds,
+                #         bbox_preds,
+                #         obj_preds,
+                #         labels,
+                #         imgs,
+                #     )
+                # except RuntimeError:
+                #     logger.error(
+                #         "OOM RuntimeError is raised due to the huge memory cost during label assignment. \
+                #            CPU mode is applied in this batch. If you want to avoid this issue, \
+                #            try to reduce the batch size or image size."
+                #     )
+                #     # torch.cuda.empty_cache()
+                #     (
+                #         gt_matched_classes,
+                #         gt_matched_colors,
+                #         fg_mask,
+                #         pred_ious_this_matching,
+                #         matched_gt_inds,
+                #         num_fg_img,
+                #     ) = self.get_assignments(
+                #         batch_idx,              #Batch
+                #         num_gt,                 #Number of ground true
+                #         total_num_anchors,      #Total number of anchors
+                #         gt_rect_bboxes_per_image,    #Ground True classes per image
+                #         gt_classes,             #Ground True classes
+                #         gt_colors,
+                #         rect_bboxes_preds_per_image,
+                #         expanded_strides,
+                #         x_shifts,
+                #         y_shifts,
+                #         cls_preds,
+                #         color_preds,
+                #         bbox_preds,
+                #         obj_preds,
+                #         labels,
+                #         imgs,
+                #         "cpu",
+                #     )
 
                 torch.cuda.empty_cache()  
                 num_fg += num_fg_img
@@ -579,6 +612,10 @@ class YOLOXHead(nn.Module):
         for i in range(self.num_apexes):
             l1_target[:, 2 * i] = gt[:, 2 * i] / stride - x_shifts
             l1_target[:, 2 * i + 1] = gt[:,2 * i + 1] / stride - y_shifts
+            # l1_target[:, 0] = gt[:, 0] / stride - x_shifts
+            # l1_target[:, 1] = gt[:, 1] / stride - y_shifts
+            # l1_target[:, 2] = torch.log(gt[:, 2] / stride + eps)
+            # l1_target[:, 3] = torch.log(gt[:, 3] / stride + eps)
         return l1_target
 
     @torch.no_grad()
@@ -621,8 +658,12 @@ class YOLOXHead(nn.Module):
             total_num_anchors,
             num_gt,
         )
+        # print(fg_mask.sum())
         #Reduce the anchor area
         bboxes_preds_per_image = bboxes_preds_per_image[fg_mask]
+        # print(bboxes_preds_per_image)
+        # print(gt_bboxes_per_image)
+        # print("="*50)
         cls_preds_ = cls_preds[batch_idx][fg_mask]
         color_preds_ = color_preds[batch_idx][fg_mask]
         obj_preds_ = obj_preds[batch_idx][fg_mask]
@@ -684,8 +725,8 @@ class YOLOXHead(nn.Module):
 
         cost = (
             pair_wise_cls_loss
-            + 1.5 * pair_wise_colors_loss
-            + 1.5 * pair_wise_ious_loss
+            + 3.0 * pair_wise_colors_loss
+            + 3.0 * pair_wise_ious_loss
             + 100000.0 * (~is_in_boxes_and_center)
         )
         #-----------------------------------------------------------
@@ -767,6 +808,7 @@ class YOLOXHead(nn.Module):
         b_t = y_centers_per_image - gt_bboxes_per_image_t
         b_b = gt_bboxes_per_image_b - y_centers_per_image
         bbox_deltas = torch.stack([b_l, b_t, b_r, b_b], 2)
+        # print(bbox_deltas.shape)
 
         is_in_boxes = bbox_deltas.min(dim=-1).values > 0.0
         is_in_boxes_all = is_in_boxes.sum(dim=0) > 0
@@ -805,9 +847,10 @@ class YOLOXHead(nn.Module):
     def dynamic_k_matching(self, cost, pair_wise_ious, gt_classes, gt_colors, num_gt, fg_mask):
         # Dynamic K
         # ---------------------------------------------------------------
-        matching_matrix = torch.zeros_like(cost)
+        matching_matrix = torch.zeros_like(cost, dtype=torch.uint8)
 
         ious_in_boxes_matrix = pair_wise_ious
+        # print(ious_in_boxes_matrix)
         n_candidate_k = min(10, ious_in_boxes_matrix.size(1))
         topk_ious, _ = torch.topk(ious_in_boxes_matrix, n_candidate_k, dim=1)
         dynamic_ks = torch.clamp(topk_ious.sum(1).int(), min=1)
@@ -822,9 +865,9 @@ class YOLOXHead(nn.Module):
         anchor_matching_gt = matching_matrix.sum(0)
         if (anchor_matching_gt > 1).sum() > 0:
             _, cost_argmin = torch.min(cost[:, anchor_matching_gt > 1], dim=0)
-            matching_matrix[:, anchor_matching_gt > 1] *= 0.0
-            matching_matrix[cost_argmin, anchor_matching_gt > 1] = 1.0
-        fg_mask_inboxes = matching_matrix.sum(0) > 0.0
+            matching_matrix[:, anchor_matching_gt > 1] *= 0
+            matching_matrix[cost_argmin, anchor_matching_gt > 1] = 1
+        fg_mask_inboxes = matching_matrix.sum(0) > 0
         num_fg = fg_mask_inboxes.sum().item()
 
         fg_mask[fg_mask.clone()] = fg_mask_inboxes
