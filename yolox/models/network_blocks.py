@@ -228,15 +228,18 @@ class Focus(nn.Module):
         )
         return self.conv(x)
 
-
 class ShuffleV2DownSampling(nn.Module):
-    def __init__(self, in_channels, out_channels, groups=2, act="silu"):
+    def __init__(self, in_channels, out_channels, c_ratio=0.5, groups=2, act="silu"):
         super().__init__()
         self.groups = groups
+        self.l_channels = int(in_channels * c_ratio)
+        self.r_channels = in_channels - self.l_channels
+        self.o_r_channels = out_channels - self.l_channels
+        
+        self.dwconv_l = DWConv(in_channels, self.l_channels,ksize=3,stride=2,act=act,no_depth_act=True)
+        self.conv_r1 = BaseConv(in_channels, self.r_channels,ksize=1,stride=1,act=act)
+        self.dwconv_r = DWConv(self.r_channels,self.o_r_channels,ksize=3,stride=2,act=act,no_depth_act=True)
 
-        self.dwconv_l = DWConv(in_channels,in_channels,ksize=3,stride=2,act=act,no_depth_act=True)
-        self.conv_r1 = BaseConv(in_channels,in_channels,ksize=1,stride=1,act=act)
-        self.dwconv_r = DWConv(in_channels,in_channels,ksize=3,stride=2,act=act,no_depth_act=True)
     def forward(self, x):
         out_l = self.dwconv_l(x)
 
@@ -247,7 +250,7 @@ class ShuffleV2DownSampling(nn.Module):
 
 #TODO:Add SE Block Support
 class ShuffleV2Basic(nn.Module):
-    def __init__(self, in_channels, out_channels, stride=1, c_ratio = 0.5, groups=2, act="silu",type=""):
+    def __init__(self, in_channels, out_channels, ksize=3,stride=1, c_ratio=0.5, groups=2, act="silu",type=""):
         super().__init__()
         self.in_channels = in_channels
         self.l_channels = int(in_channels * c_ratio)
@@ -255,16 +258,31 @@ class ShuffleV2Basic(nn.Module):
         self.o_r_channels = out_channels - self.l_channels
 
         self.groups = groups
-        self.conv_r1 = BaseConv(self.r_channels, self.o_r_channels, ksize=1, stride=1, act=act)
-        self.dwconv_r = DWConv(self.o_r_channels, self.o_r_channels,ksize=3, stride=1, act=act, no_depth_act=True)
+        self.conv_r1 = BaseConv(self.r_channels, self.o_r_channels, ksize=1, stride=stride, act=act)
+        self.dwconv_r = DWConv(self.o_r_channels, self.o_r_channels,ksize=ksize, stride=stride, act=act, no_depth_act=True)
 
     def forward(self, x):
         x_l = x[:, :self.l_channels, :, :]
         x_r = x[:, self.l_channels:, :, :]
-
         out_r = self.conv_r1(x_r)
         out_r = self.dwconv_r(out_r)
 
         x = torch.cat((x_l, out_r), dim=1)
 
         return channel_shuffle(x,self.groups)
+
+class ShuffleV2ReduceBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, ksize=3, stride=1, c_ratio=0.5, repeat=1, groups=2, act="silu",type=""):
+        super().__init__()
+        self.conv1 = DWConv(in_channels, out_channels, ksize=ksize)
+        self.shuffle_blocks_list = []
+
+        for _ in range(repeat):
+            self.shuffle_blocks_list.append(ShuffleV2Basic(out_channels, out_channels, ksize, act=act))
+        self.shuffle_blocks = nn.Sequential(*self.shuffle_blocks_list)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.shuffle_blocks(x)
+
+        return x

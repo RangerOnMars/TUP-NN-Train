@@ -62,10 +62,10 @@ class Exp(BaseExp):
 
         # --------------  training config --------------------- #
         #For Using SGD+Momentum
-        self.warmup_epochs = 40
+        self.warmup_epochs = 20
         self.max_epoch = 700
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 960
+        self.basic_lr_per_img = 0.01 / 640
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 30
         self.min_lr_ratio = 0.06

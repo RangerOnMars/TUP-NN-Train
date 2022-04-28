@@ -18,7 +18,7 @@ import torch.nn.functional as F
 
 from yolox.utils import bboxes_iou
 from yolox.utils.boxes import min_rect
-from .losses import PolyIOUloss,WingLoss
+from .losses import PolyIOUloss,WingLoss,FocalLoss
 
 from .network_blocks import BaseConv, DWConv
 
@@ -52,16 +52,16 @@ class YOLOXHead(nn.Module):
         self.color_preds = nn.ModuleList()
         self.reg_preds = nn.ModuleList()
         self.obj_preds = nn.ModuleList()
-        self.in_channels = [int(in_channels[0] * width), int(in_channels[1] * width), int(in_channels[2] * width)]
-        self.out_channels = [int(256 * width), int(256 * width), int(256 * width)]
+        self.in_channels = in_channels
+        self.stem_channels = [int(256 * width), int(256 * width), int(256 * width)]
         self.stems = nn.ModuleList()
         Conv = DWConv if depthwise else BaseConv
         #
         for i in range(len(in_channels)):
-            if (self.in_channels != self.out_channels):
+            if (self.in_channels[i] != self.stem_channels[i]):
                 self.stems.append(
                     BaseConv(
-                        in_channels=int(in_channels[i] * width),
+                        in_channels=int(in_channels[i]),
                         out_channels=int(256 * width),
                         ksize=1,
                         stride=1,
@@ -75,14 +75,14 @@ class YOLOXHead(nn.Module):
                         Conv(
                             in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
+                            ksize=5,
                             stride=1,
                             act=act,
                         ),
                         Conv(
                             in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
+                            ksize=5,
                             stride=1,
                             act=act,
                         ),
@@ -96,14 +96,14 @@ class YOLOXHead(nn.Module):
                         Conv(
                             in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
+                            ksize=5,
                             stride=1,
                             act=act,
                         ),
                         Conv(
                             in_channels=int(256 * width),
                             out_channels=int(256 * width),
-                            ksize=3,
+                            ksize=5,
                             stride=1,
                             act=act,
                         ),
@@ -149,15 +149,21 @@ class YOLOXHead(nn.Module):
                     padding=0,
                 )
             )
-
+        #TODO:根据样本数量调整alpha权值
+        # self.alpha_cls = Tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.2]) * 10
+        # self.alpha_cls_colors = Tensor([0.1, 0.1, 0.3, 0.5]) * 10
+        self.alpha_cls = Tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]) * 10
+        self.alpha_cls_colors = Tensor([0.1, 0.1, 0.1, 0.1]) * 10
         self.use_l1 = False
         self.use_distill = False
         self.l1_loss = nn.L1Loss(reduction="none")
         self.bcewithlog_loss = nn.BCEWithLogitsLoss(reduction="none")
-        self.log_softmax = nn.LogSoftmax(dim="1")
-        self.cross_entropy = nn.CrossEntropyLoss(reduction="none")
+        self.bcewithlog_loss_cls = nn.BCEWithLogitsLoss(weight=self.alpha_cls, reduction="none")
+        self.bcewithlog_loss_colors = nn.BCEWithLogitsLoss(weight=self.alpha_cls, reduction="none")
+        # self.focal_loss_obj = FocalLoss(alpha=0.25, gamma=2)
+        # self.focal_loss_cls = FocalLoss(alpha=self.alpha_cls, gamma=2, num_classes=self.num_classes)
+        # self.focal_loss_colors = FocalLoss(alpha=self.alpha_cls_colors, gamma=2, num_classes=self.num_colors)
         self.l1 = nn.L1Loss(reduction="none")
-        # self.iou_loss = PolyIOUloss(reduction="sum", loss_type="giou")
         self.wing_loss = WingLoss()
         self.strides = strides
         self.grids = [torch.zeros(1)] * len(in_channels)
@@ -187,7 +193,7 @@ class YOLOXHead(nn.Module):
         for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
             zip(self.cls_convs, self.reg_convs, self.strides, xin)
         ):
-            if (self.in_channels != self.out_channels):
+            if (len(self.stems) != 0):
                 x = self.stems[k](x)
             cls_x = x
             reg_x = x
@@ -343,11 +349,11 @@ class YOLOXHead(nn.Module):
         ).sum()  / num_postive
 
         loss_cls = (
-            self.bcewithlog_loss(cls_preds[gt_masks].view(-1, self.num_classes), cls_teacher[gt_masks].view(-1, self.num_classes))
+            self.bcewithlog_loss_cls(cls_preds[gt_masks].view(-1, self.num_classes), cls_teacher[gt_masks].view(-1, self.num_classes))
         ).sum() / num_postive
 
         loss_colors = (
-            self.bcewithlog_loss(
+            self.bcewithlog_loss_colors(
                 color_preds[gt_masks].view(-1, self.num_colors), color_teacher[gt_masks].view(-1, self.num_colors)
             )
         ).sum() / num_postive
@@ -462,66 +468,65 @@ class YOLOXHead(nn.Module):
                     labels,
                     imgs,
                 )
-                #TODO: Fix SimOTA
-                # try:
-                #     (
-                #         gt_matched_classes,
-                #         gt_matched_colors,
-                #         fg_mask,
-                #         pred_ious_this_matching,
-                #         matched_gt_inds,
-                #         num_fg_img,
-                #     ) = self.get_assignments(
-                #         batch_idx,              #Batch
-                #         num_gt,                 #Number of ground true
-                #         total_num_anchors,      #Total number of anchors
-                #         gt_rect_bboxes_per_image,    #Ground True classes per image
-                #         gt_classes,             #Ground True classes
-                #         gt_colors,
-                #         rect_bboxes_preds_per_image,
-                #         expanded_strides,
-                #         x_shifts,
-                #         y_shifts,
-                #         cls_preds,
-                #         color_preds,
-                #         bbox_preds,
-                #         obj_preds,
-                #         labels,
-                #         imgs,
-                #     )
-                # except RuntimeError:
-                #     logger.error(
-                #         "OOM RuntimeError is raised due to the huge memory cost during label assignment. \
-                #            CPU mode is applied in this batch. If you want to avoid this issue, \
-                #            try to reduce the batch size or image size."
-                #     )
-                #     # torch.cuda.empty_cache()
-                #     (
-                #         gt_matched_classes,
-                #         gt_matched_colors,
-                #         fg_mask,
-                #         pred_ious_this_matching,
-                #         matched_gt_inds,
-                #         num_fg_img,
-                #     ) = self.get_assignments(
-                #         batch_idx,              #Batch
-                #         num_gt,                 #Number of ground true
-                #         total_num_anchors,      #Total number of anchors
-                #         gt_rect_bboxes_per_image,    #Ground True classes per image
-                #         gt_classes,             #Ground True classes
-                #         gt_colors,
-                #         rect_bboxes_preds_per_image,
-                #         expanded_strides,
-                #         x_shifts,
-                #         y_shifts,
-                #         cls_preds,
-                #         color_preds,
-                #         bbox_preds,
-                #         obj_preds,
-                #         labels,
-                #         imgs,
-                #         "cpu",
-                #     )
+                try:
+                    (
+                        gt_matched_classes,
+                        gt_matched_colors,
+                        fg_mask,
+                        pred_ious_this_matching,
+                        matched_gt_inds,
+                        num_fg_img,
+                    ) = self.get_assignments(
+                        batch_idx,              #Batch
+                        num_gt,                 #Number of ground true
+                        total_num_anchors,      #Total number of anchors
+                        gt_rect_bboxes_per_image,    #Ground True classes per image
+                        gt_classes,             #Ground True classes
+                        gt_colors,
+                        rect_bboxes_preds_per_image,
+                        expanded_strides,
+                        x_shifts,
+                        y_shifts,
+                        cls_preds,
+                        color_preds,
+                        bbox_preds,
+                        obj_preds,
+                        labels,
+                        imgs,
+                    )
+                except RuntimeError:
+                    logger.error(
+                        "OOM RuntimeError is raised due to the huge memory cost during label assignment. \
+                           CPU mode is applied in this batch. If you want to avoid this issue, \
+                           try to reduce the batch size or image size."
+                    )
+                    # torch.cuda.empty_cache()
+                    (
+                        gt_matched_classes,
+                        gt_matched_colors,
+                        fg_mask,
+                        pred_ious_this_matching,
+                        matched_gt_inds,
+                        num_fg_img,
+                    ) = self.get_assignments(
+                        batch_idx,              #Batch
+                        num_gt,                 #Number of ground true
+                        total_num_anchors,      #Total number of anchors
+                        gt_rect_bboxes_per_image,    #Ground True classes per image
+                        gt_classes,             #Ground True classes
+                        gt_colors,
+                        rect_bboxes_preds_per_image,
+                        expanded_strides,
+                        x_shifts,
+                        y_shifts,
+                        cls_preds,
+                        color_preds,
+                        bbox_preds,
+                        obj_preds,
+                        labels,
+                        imgs,
+                        "cpu",
+                    )
 
                 torch.cuda.empty_cache()  
                 num_fg += num_fg_img
@@ -532,6 +537,10 @@ class YOLOXHead(nn.Module):
                 colors_target = F.one_hot(
                     gt_matched_colors.to(torch.int64), self.num_colors
                 ) * pred_ious_this_matching.unsqueeze(-1)
+                # print(cls_target)
+                # print(pred_ious_this_matching.unsqueeze(-1))
+                # cls_target = gt_matched_classes.to(torch.int64) * pred_ious_this_matching.unsqueeze(-1)
+                # colors_target = gt_matched_colors.to(torch.int64) * pred_ious_this_matching.unsqueeze(-1)
                 obj_target = fg_mask.unsqueeze(-1)
                 reg_target = gt_bboxes_per_image[matched_gt_inds]
                 if self.use_l1:
@@ -561,9 +570,6 @@ class YOLOXHead(nn.Module):
             l1_targets = torch.cat(l1_targets, 0)
         num_fg = max(num_fg, 1)
 
-        # loss_reg = (
-        #     self.l1(bbox_preds.view(-1, 8)[fg_masks], reg_targets)
-        # ).sum() / num_fg
         loss_reg = (
             self.wing_loss(bbox_preds.view(-1, self.num_apexes * 2)[fg_masks], reg_targets)
         ).sum() / num_fg
@@ -576,13 +582,32 @@ class YOLOXHead(nn.Module):
             self.bcewithlog_loss(
                 cls_preds.view(-1, self.num_classes)[fg_masks], cls_targets
             )
-        ).sum() / num_fg
+        )
+        # print(loss_cls.shape)
+        loss_cls = loss_cls.sum() / num_fg
 
         loss_colors = (
             self.bcewithlog_loss(
                 color_preds.view(-1, self.num_colors)[fg_masks], colors_targets
             )
         ).sum() / num_fg
+        # print(cls_target)
+
+        # loss_obj = (
+        #     self.focal_loss_obj(obj_preds.view(-1, 1), obj_targets)
+        # ).sum() / num_fg
+
+        # loss_cls = (
+        #     self.focal_loss_cls(
+        #         cls_preds.view(-1, self.num_classes)[fg_masks], cls_targets
+        #     )
+        # ).sum() / num_fg
+
+        # loss_colors = (
+        #     self.focal_loss_colors(
+        #         color_preds.view(-1, self.num_colors)[fg_masks], colors_targets
+        #     )
+        # ).sum() / num_fg
 
         if self.use_l1:
             loss_l1 = (
@@ -725,7 +750,7 @@ class YOLOXHead(nn.Module):
 
         cost = (
             pair_wise_cls_loss
-            + 3.0 * pair_wise_colors_loss
+            + pair_wise_colors_loss
             + 3.0 * pair_wise_ious_loss
             + 100000.0 * (~is_in_boxes_and_center)
         )

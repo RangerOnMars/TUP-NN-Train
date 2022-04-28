@@ -71,7 +71,7 @@ class GhostBlocks(nn.Module):
             out = out + self.reduce_conv(x)
         return out
 
-
+#TODO:可尝试修改上采样配置
 class GhostPAN(nn.Module):
     """Path Aggregation Network with Ghost block.
 
@@ -89,8 +89,6 @@ class GhostPAN(nn.Module):
             Default: 0.
         upsample_cfg (dict): Config dict for interpolate layer.
             Default: `dict(scale_factor=2, mode='nearest')`
-        norm_cfg (dict): Config dict for normalization layer.
-            Default: dict(type='BN')
         activation (str): Activation layer name.
             Default: LeakyReLU.
     """
@@ -106,7 +104,6 @@ class GhostPAN(nn.Module):
         use_res=False,
         num_extra_level=0,
         upsample_cfg=dict(scale_factor=2, mode="bilinear"),
-        norm_cfg=dict(type="BN"),
         activation="hswish",
     ):
         super(GhostPAN, self).__init__()
@@ -131,16 +128,6 @@ class GhostPAN(nn.Module):
                     act=self.activation,
                 )
             )
-            # print()
-            # self.reduce_layers.append(
-            #     ConvModule(
-            #         in_channels[idx],
-            #         out_channels,
-            #         1,
-            #         norm_cfg=norm_cfg,
-            #         activation=activation,
-            #     )
-            # )
         self.top_down_blocks = nn.ModuleList()
         for idx in range(len(in_channels) - 1, 0, -1):
             self.top_down_blocks.append(
@@ -160,15 +147,6 @@ class GhostPAN(nn.Module):
         self.bottom_up_blocks = nn.ModuleList()
         for idx in range(len(in_channels) - 1):
             self.downsamples.append(
-                # conv(
-                #     out_channels,
-                #     out_channels,
-                #     kernel_size,
-                #     stride=2,
-                #     padding=kernel_size // 2,
-                #     norm_cfg=norm_cfg,
-                #     activation=activation,
-                # )
                 Conv(
                     out_channels,
                     out_channels,
@@ -197,12 +175,12 @@ class GhostPAN(nn.Module):
             tuple[Tensor]: multi level features.
         """
         assert len(inputs) == len(self.in_channels)
+        # Reduce layers
         inputs = [
             reduce(input_x) for input_x, reduce in zip(inputs, self.reduce_layers)
         ]
         # top-down path
         inner_outs = [inputs[-1]]
-        # print(inner_out)
         for idx in range(len(self.in_channels) - 1, 0, -1):
             feat_heigh = inner_outs[0]
             feat_low = inputs[idx - 1]
@@ -215,11 +193,23 @@ class GhostPAN(nn.Module):
                 torch.cat([upsample_feat, feat_low], 1)
             )
             inner_outs.insert(0, inner_out)
-
         # bottom-up path
-        outs = [inner_outs[0]]
+        # outs = [inner_outs[0]]
+        # for idx in range(len(self.in_channels) - 1):
+        #     feat_low = outs[-1]
+        #     feat_height = inner_outs[idx + 1]
+        #     downsample_feat = self.downsamples[idx](feat_low)
+        #     out = self.bottom_up_blocks[idx](
+        #         torch.cat([downsample_feat, feat_height], 1)
+        #     )
+        #     outs.append(out)
+        outs = []
+        feat_low = []
         for idx in range(len(self.in_channels) - 1):
-            feat_low = outs[-1]
+            if (idx == 0):
+                feat_low = inner_outs[0]
+            else:
+                feat_low = outs[-1]
             feat_height = inner_outs[idx + 1]
             downsample_feat = self.downsamples[idx](feat_low)
             out = self.bottom_up_blocks[idx](

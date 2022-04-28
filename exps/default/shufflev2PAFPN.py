@@ -37,7 +37,7 @@ class Exp(MyExp):
                     m.eps = 1e-3
                     m.momentum = 0.03
         if "model" not in self.__dict__:
-            from yolox.models import YOLOX, ShuffleV2GhostPAN, YOLOXHead
+            from yolox.models import YOLOX, ShuffleV2PAFPN, YOLOXHead
             strides = [8, 16, 32]
             # strides = [16, 32, 64]
             # in_channels = [256, 512, 1024]
@@ -53,7 +53,7 @@ class Exp(MyExp):
             # in_features=("stage2", "stage3", "stage4")
             in_features=("stage1", "stage2", "stage3", "stage4")
             # NANO model use depthwise = True, which is main difference.
-            backbone = ShuffleV2GhostPAN(self.depth, self.width, in_features, in_channels=in_channels, depthwise=True, act=self.act)
+            backbone = ShuffleV2PAFPN(self.depth, self.width, in_features, in_channels=in_channels, depthwise=True, act=self.act)
             head = YOLOXHead(self.num_apexes, self.num_classes, self.num_colors, self.width, strides, in_channels=in_channels_head, depthwise=True, act=self.act)
             self.model = YOLOX(backbone, head)
 
