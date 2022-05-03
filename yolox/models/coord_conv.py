@@ -102,15 +102,15 @@ class CoordConv(nn.Module):
         if with_r:
             in_channels += 1
 
-        self.conv_layer = BaseConv(in_channels, out_channels,
-                                    ksize, stride=stride, groups=groups,bias=bias,
-                                    act=act)
+        # self.conv_layer = BaseConv(in_channels, out_channels,
+        #                             ksize, stride=stride, groups=groups,bias=bias,
+        #                             act=act)
 
         self.coord_adder = AddCoordinates(with_r)
 
     def forward(self, x):
         x = self.coord_adder(x)
-        x = self.conv_layer(x)
+        # x = self.conv_layer(x)
 
         return x
 

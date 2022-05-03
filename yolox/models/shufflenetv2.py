@@ -1,7 +1,9 @@
 from torch import nn
 import torch
 
-from .network_blocks import BaseConv, Focus, DWConv, BaseConv, ShuffleV2DownSampling, ShuffleV2Basic
+from yolox.models import coord_conv
+
+from .network_blocks import BaseConv, Focus, DWConv, BaseConv, ShuffleV2DownSampling, ShuffleV2Basic,CoordConv
 
 class Shufflenet(nn.Module):
     def __init__(
@@ -18,7 +20,8 @@ class Shufflenet(nn.Module):
         # print(chann)
 
         self.stem_list = []
-        self.stem_list.append(DWConv(3,24,ksize=5,stride=2))
+        self.stem_list.append(DWConv(3,22,ksize=5,stride=2))
+        self.coord = CoordConv(22, 24, ksize=3,stride=1)
         # self.stem_list.append(DWConv(3, 48, ksize=7, stride=4,act=act))
         # self.stem_list.append(DWConv(3, 48, ksize=3, stride=2,act=act))
         # self.stem_list.append(DWConv(48, 48, ksize=3, stride=2,act=act))
@@ -45,6 +48,7 @@ class Shufflenet(nn.Module):
         outputs = {}
         # print(x.shape)
         x = self.stem(x)
+        x = self.coord(x)
         outputs["stem"] = x
         x = self.conv1(x)
         outputs["stage1"] = x

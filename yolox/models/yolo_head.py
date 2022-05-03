@@ -58,16 +58,15 @@ class YOLOXHead(nn.Module):
         Conv = DWConv if depthwise else BaseConv
         #
         for i in range(len(in_channels)):
-            if (self.in_channels[i] != self.stem_channels[i]):
-                self.stems.append(
-                    BaseConv(
-                        in_channels=int(in_channels[i]),
-                        out_channels=int(256 * width),
-                        ksize=1,
-                        stride=1,
-                        act=act,
-                    )
+            self.stems.append(
+                BaseConv(
+                    in_channels=int(in_channels[i]),
+                    out_channels=int(256 * width),
+                    ksize=1,
+                    stride=1,
+                    act=act,
                 )
+            )
             #Building Classification Convolution Layer
             self.cls_convs.append(
                 nn.Sequential(
@@ -150,16 +149,16 @@ class YOLOXHead(nn.Module):
                 )
             )
         #TODO:根据样本数量调整alpha权值
-        # self.alpha_cls = Tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.2]) * 10
-        # self.alpha_cls_colors = Tensor([0.1, 0.1, 0.3, 0.5]) * 10
-        self.alpha_cls = Tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]) * 10
-        self.alpha_cls_colors = Tensor([0.1, 0.1, 0.1, 0.1]) * 10
+        self.alpha_cls = Tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.2]) * 10
+        self.alpha_cls_colors = Tensor([0.1, 0.1, 0.3, 0.5]) * 10
+        # self.alpha_cls = Tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]) * 10
+        # self.alpha_cls_colors = Tensor([0.1, 0.1, 0.1, 0.1]) * 10
         self.use_l1 = False
         self.use_distill = False
         self.l1_loss = nn.L1Loss(reduction="none")
         self.bcewithlog_loss = nn.BCEWithLogitsLoss(reduction="none")
-        self.bcewithlog_loss_cls = nn.BCEWithLogitsLoss(weight=self.alpha_cls, reduction="none")
-        self.bcewithlog_loss_colors = nn.BCEWithLogitsLoss(weight=self.alpha_cls, reduction="none")
+        self.bcewithlog_loss_cls = nn.BCEWithLogitsLoss(pos_weight=self.alpha_cls, reduction="none")
+        self.bcewithlog_loss_colors = nn.BCEWithLogitsLoss(pos_weight=self.alpha_cls_colors, reduction="none")
         # self.focal_loss_obj = FocalLoss(alpha=0.25, gamma=2)
         # self.focal_loss_cls = FocalLoss(alpha=self.alpha_cls, gamma=2, num_classes=self.num_classes)
         # self.focal_loss_colors = FocalLoss(alpha=self.alpha_cls_colors, gamma=2, num_classes=self.num_colors)
@@ -193,8 +192,7 @@ class YOLOXHead(nn.Module):
         for k, (cls_conv, reg_conv, stride_this_level, x) in enumerate(
             zip(self.cls_convs, self.reg_convs, self.strides, xin)
         ):
-            if (len(self.stems) != 0):
-                x = self.stems[k](x)
+            x = self.stems[k](x)
             cls_x = x
             reg_x = x
             cls_feat = cls_conv(cls_x)
@@ -579,7 +577,7 @@ class YOLOXHead(nn.Module):
         ).sum() / num_fg
 
         loss_cls = (
-            self.bcewithlog_loss(
+            self.bcewithlog_loss_cls(
                 cls_preds.view(-1, self.num_classes)[fg_masks], cls_targets
             )
         )
@@ -587,7 +585,7 @@ class YOLOXHead(nn.Module):
         loss_cls = loss_cls.sum() / num_fg
 
         loss_colors = (
-            self.bcewithlog_loss(
+            self.bcewithlog_loss_colors(
                 color_preds.view(-1, self.num_colors)[fg_masks], colors_targets
             )
         ).sum() / num_fg

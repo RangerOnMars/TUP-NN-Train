@@ -33,12 +33,12 @@ class ShuffleV2PAFPN(nn.Module):
         self.in_channels = in_channels
         # self.backbone = Shufflenet(channels=self.in_channels, act=act)
         self.backbone = Shufflenet(channels=self.in_channels, out_features=in_features,act=act)
-        # self.out_channels = in_channels[1]
-        self.out_channels = 96
+        self.out_channels = in_channels[1]
+        # self.out_channels = 
         Conv = DWConv if depthwise else BaseConv
         # self.neck = GhostPAN(self.in_channels, self.out_channels, depthwise, activation=act)
         # self.neck = GhostPAN([24, 64, 128, 256], self.out_channels, depthwise, activation=act)
-        self.neck = ShufflePAFPN([24, 64, 128, 256], self.out_channels, depthwise, activation=act)
+        self.neck = ShufflePAFPN(self.in_channels, self.out_channels, depthwise, activation=act)
 
     def forward(self, input):
         """
@@ -55,8 +55,8 @@ class ShuffleV2PAFPN(nn.Module):
         # for i in range(len(features)):
         #     print(features[i].shape)
         # [x2, x1, x0] = features
-        [x3, x2, x1, x0] = features
-        outputs = self.neck([x3, x2, x1, x0])
+        [x2, x1, x0] = features
+        outputs = self.neck([x2, x1, x0])
         # print(outputs[0].shape)
         # print(outputs[1].shape)
         # print(outputs[2].shape)
@@ -104,8 +104,8 @@ class ShuffleV2GhostPAN(nn.Module):
         # for i in range(len(features)):
         #     print(features[i].shape)
         # [x2, x1, x0] = features
-        [x3, x2, x1, x0] = features
-        outputs = self.neck([x3, x2, x1, x0])
+        [x2, x1, x0] = features
+        outputs = self.neck([x2, x1, x0])
         # print(outputs[0].shape)
         # print(outputs[1].shape)
         # print(outputs[2].shape)

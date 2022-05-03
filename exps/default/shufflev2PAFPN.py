@@ -16,7 +16,7 @@ class Exp(MyExp):
     def __init__(self):
         super(Exp, self).__init__()
         self.depth = 0.33
-        self.width = 0.375
+        self.width = 0.5
         '''
         Size must be a multiple of 64.
         '''
@@ -45,13 +45,12 @@ class Exp(MyExp):
             # in_channels = [48, 96, 192]
             # in_channels = [116, 232, 464]
             in_channels = [64, 128, 256]
-            # in_channels_head = [116, 232, 464]
+
             # in_channels_head = [96, 96, 96]
             # in_channels_head = [128, 128, 128]
-            # in_channels_head = [128, 128, 128]
-            in_channels_head = [96, 96, 96]
+            in_channels_head = [128, 128, 128]
             # in_features=("stage2", "stage3", "stage4")
-            in_features=("stage1", "stage2", "stage3", "stage4")
+            in_features=("stage2", "stage3", "stage4")
             # NANO model use depthwise = True, which is main difference.
             backbone = ShuffleV2PAFPN(self.depth, self.width, in_features, in_channels=in_channels, depthwise=True, act=self.act)
             head = YOLOXHead(self.num_apexes, self.num_classes, self.num_colors, self.width, strides, in_channels=in_channels_head, depthwise=True, act=self.act)

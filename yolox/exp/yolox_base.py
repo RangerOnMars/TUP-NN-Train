@@ -42,7 +42,7 @@ class Exp(BaseExp):
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.95
+        self.mosaic_prob = 0.99
         self.mosaic_scale = (0.5, 1.5)
         #Mixup
         self.enable_mixup = False
@@ -63,7 +63,7 @@ class Exp(BaseExp):
         # --------------  training config --------------------- #
         #For Using SGD+Momentum
         self.warmup_epochs = 20
-        self.max_epoch = 700
+        self.max_epoch = 500
         self.warmup_lr = 0
         self.basic_lr_per_img = 0.01 / 640
         self.scheduler = "yoloxwarmcos"

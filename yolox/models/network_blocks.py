@@ -15,8 +15,7 @@ class SiLU(nn.Module):
     def forward(x):
         return x * torch.sigmoid(x)
 
-
-def get_activation(name="silu", inplace=True):
+def get_activation(name="hswish", inplace=True):
     if name == "silu":
         module = nn.SiLU(inplace=inplace)
     elif name == "relu":
@@ -31,20 +30,30 @@ def get_activation(name="silu", inplace=True):
 
 def channel_shuffle(x, groups=2):
     """Channel Shuffle"""
-    bs, chnls, h, w = x.data.size()
-    if chnls % groups:
-        return x
-    chnls_per_group = chnls // groups
-    x = x.view(bs, groups, chnls_per_group, h, w)
+
+    batchsize, num_channels, height, width = x.data.size()
+ 
+    channels_per_group = num_channels // groups
+ 
+    # reshape
+    x = x.view(batchsize, groups,
+               channels_per_group, height, width)
+ 
+    # transpose
+    # - contiguous() required if transpose() is used before view().
+    #   See https://github.com/pytorch/pytorch/issues/764
     x = torch.transpose(x, 1, 2).contiguous()
-    x = x.view(bs, -1, h, w)
+ 
+    # flatten
+    x = x.view(batchsize, -1, height, width)
+    
     return x
 
 class BaseConv(nn.Module):
-    """A Conv2d -> Batchnorm -> silu/leaky relu block"""
+    """A Conv2d -> Batchnorm -> hswish/leaky relu block"""
 
     def __init__(
-        self, in_channels, out_channels, ksize, stride, groups=1, bias=False, act="silu", no_act=False
+        self, in_channels, out_channels, ksize, stride, groups=1, bias=False, act="hswish", no_act=False
     ):
         super().__init__()
         # same padding
@@ -75,7 +84,7 @@ class BaseConv(nn.Module):
 class DWConv(nn.Module):
     """Depthwise Conv + Conv"""
 
-    def __init__(self, in_channels, out_channels, ksize, stride=1, act="silu",no_depth_act=True):
+    def __init__(self, in_channels, out_channels, ksize, stride=1, act="hswish",no_depth_act=True):
         super().__init__()
         self.dconv = BaseConv(
             in_channels,
@@ -104,7 +113,7 @@ class Bottleneck(nn.Module):
         shortcut=True,
         expansion=0.5,
         depthwise=False,
-        act="silu",
+        act="hswish",
     ):
         super().__init__()
         hidden_channels = int(out_channels * expansion)
@@ -142,7 +151,7 @@ class SPPBottleneck(nn.Module):
     """Spatial pyramid pooling layer used in YOLOv3-SPP"""
 
     def __init__(
-        self, in_channels, out_channels, kernel_sizes=(5, 9, 13), activation="silu"
+        self, in_channels, out_channels, kernel_sizes=(5, 9, 13), activation="hswish"
     ):
         super().__init__()
         hidden_channels = in_channels // 2
@@ -174,7 +183,7 @@ class CSPLayer(nn.Module):
         shortcut=True,
         expansion=0.5,
         depthwise=False,
-        act="silu",
+        act="hswish",
     ):
         """
         Args:
@@ -206,7 +215,7 @@ class CSPLayer(nn.Module):
 class Focus(nn.Module):
     """Focus width and height information into channel space."""
 
-    def __init__(self, in_channels, out_channels, ksize=1, stride=1, depthwise=False, act="silu"):
+    def __init__(self, in_channels, out_channels, ksize=1, stride=1, depthwise=False, act="hswish"):
         super().__init__()
         Conv = DWConv if depthwise else BaseConv
         self.conv = Conv(in_channels * 4, out_channels, ksize, stride, act=act)
@@ -229,7 +238,7 @@ class Focus(nn.Module):
         return self.conv(x)
 
 class ShuffleV2DownSampling(nn.Module):
-    def __init__(self, in_channels, out_channels, c_ratio=0.5, groups=2, act="silu"):
+    def __init__(self, in_channels, out_channels, c_ratio=0.5, groups=2, act="hswish"):
         super().__init__()
         self.groups = groups
         self.l_channels = int(in_channels * c_ratio)
@@ -250,7 +259,7 @@ class ShuffleV2DownSampling(nn.Module):
 
 #TODO:Add SE Block Support
 class ShuffleV2Basic(nn.Module):
-    def __init__(self, in_channels, out_channels, ksize=3,stride=1, c_ratio=0.5, groups=2, act="silu",type=""):
+    def __init__(self, in_channels, out_channels, ksize=3,stride=1, c_ratio=0.5, groups=2, act="hswish",type=""):
         super().__init__()
         self.in_channels = in_channels
         self.l_channels = int(in_channels * c_ratio)
@@ -271,10 +280,36 @@ class ShuffleV2Basic(nn.Module):
 
         return channel_shuffle(x,self.groups)
 
-class ShuffleV2ReduceBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, ksize=3, stride=1, c_ratio=0.5, repeat=1, groups=2, act="silu",type=""):
+class ShuffleV2Reduce(nn.Module):
+    def __init__(self, in_channels, out_channels, ksize=3, stride=1, c_ratio=0.5, groups=2, act="hswish"):
         super().__init__()
-        self.conv1 = DWConv(in_channels, out_channels, ksize=ksize)
+        self.in_channels = in_channels
+        self.l_channels = int(out_channels * c_ratio)
+        self.r_channels = in_channels - self.l_channels
+        self.o_r_channels = out_channels - self.l_channels
+
+        self.groups = groups
+        self.conv_r1 = BaseConv(self.r_channels, self.o_r_channels, ksize=1, stride=stride, act=act)
+        self.dwconv_r = DWConv(self.o_r_channels, self.o_r_channels,ksize=ksize, stride=stride, act=act, no_depth_act=True)
+
+    def forward(self, x):
+        
+        x = channel_shuffle(x,self.groups)
+        
+        x_l = x[:, :self.l_channels, :, :]
+        x_r = x[:, self.l_channels:, :, :]
+        out_r = self.conv_r1(x_r)
+        out_r = self.dwconv_r(out_r)
+        
+        x = torch.cat((x_l, out_r), dim=1)
+        
+        return channel_shuffle(x,self.groups)
+
+class ShuffleV2ReduceBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, ksize=3, stride=1, c_ratio=0.5, repeat=2, groups=2, act="hswish",type=""):
+        super().__init__()
+        # self.conv1 = DWConv(in_channels, out_channels, ksize=ksize)
+        self.conv1 = ShuffleV2Reduce(in_channels, out_channels, ksize=ksize, c_ratio=c_ratio, groups=groups, act=act)
         self.shuffle_blocks_list = []
 
         for _ in range(repeat):
