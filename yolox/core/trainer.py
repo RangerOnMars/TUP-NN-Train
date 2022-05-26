@@ -108,7 +108,7 @@ class Trainer:
         # src = src.copy()
         # for target in targets1:
         #     # print(target)
-        #     # cv2.putText(src,str(target[0] + target[1] * 8),tuple(np.array(target[2:4])),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
+        #     cv2.putText(src,str(target[0] + target[1] * 8),tuple(np.array(target[2:4])),cv2.FONT_HERSHEY_SIMPLEX,1,(0,0,255),2)
         #     cv2.line(src, tuple(np.array(target[2:4])), tuple(np.array(target[4:6])), (0,255,0), 1)
         #     cv2.line(src, tuple(np.array(target[4:6])), tuple(np.array(target[6:8])), (0,255,0),1)
         #     cv2.line(src, tuple(np.array(target[6:8])), tuple(np.array(target[8:10])), (0,255,0),1)

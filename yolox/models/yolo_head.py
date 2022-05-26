@@ -149,16 +149,14 @@ class YOLOXHead(nn.Module):
                 )
             )
         #TODO:根据样本数量调整alpha权值
-        self.alpha_cls = Tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.2]) * 10
-        self.alpha_cls_colors = Tensor([0.1, 0.1, 0.3, 0.5]) * 10
-        # self.alpha_cls = Tensor([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1]) * 10
-        # self.alpha_cls_colors = Tensor([0.1, 0.1, 0.1, 0.1]) * 10
         self.use_l1 = False
         self.use_distill = False
         self.l1_loss = nn.L1Loss(reduction="none")
         self.bcewithlog_loss = nn.BCEWithLogitsLoss(reduction="none")
-        self.bcewithlog_loss_cls = nn.BCEWithLogitsLoss(pos_weight=self.alpha_cls, reduction="none")
-        self.bcewithlog_loss_colors = nn.BCEWithLogitsLoss(pos_weight=self.alpha_cls_colors, reduction="none")
+        # self.bcewithlog_loss_cls = nn.BCEWithLogitsLoss(pos_weight=self.alpha_cls, reduction="none")
+        # self.bcewithlog_loss_colors = nn.BCEWithLogitsLoss(pos_weight=self.alpha_cls_colors, reduction="none")
+        self.bcewithlog_loss_cls = nn.BCEWithLogitsLoss(reduction="none")
+        self.bcewithlog_loss_colors = nn.BCEWithLogitsLoss(reduction="none")
         # self.focal_loss_obj = FocalLoss(alpha=0.25, gamma=2)
         # self.focal_loss_cls = FocalLoss(alpha=self.alpha_cls, gamma=2, num_classes=self.num_classes)
         # self.focal_loss_colors = FocalLoss(alpha=self.alpha_cls_colors, gamma=2, num_classes=self.num_colors)
@@ -747,8 +745,8 @@ class YOLOXHead(nn.Module):
         del cls_preds_, color_preds_
 
         cost = (
-            pair_wise_cls_loss
-            + pair_wise_colors_loss
+            0.5 * pair_wise_cls_loss
+            + 0.5 * pair_wise_colors_loss
             + 3.0 * pair_wise_ious_loss
             + 100000.0 * (~is_in_boxes_and_center)
         )

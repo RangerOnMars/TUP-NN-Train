@@ -20,14 +20,14 @@ class Shufflenet(nn.Module):
         # print(chann)
 
         self.stem_list = []
-        self.stem_list.append(DWConv(3,22,ksize=5,stride=2))
+        self.stem_list.append(BaseConv(3,22,ksize=6,stride=2))
         self.coord = CoordConv(22, 24, ksize=3,stride=1)
-        # self.stem_list.append(DWConv(3, 48, ksize=7, stride=4,act=act))
+        # self.stem_list.append(DWConv(16, 24, ksize=1, stride=1,act=act))
         # self.stem_list.append(DWConv(3, 48, ksize=3, stride=2,act=act))
         # self.stem_list.append(DWConv(48, 48, ksize=3, stride=2,act=act))
         self.stem = nn.Sequential(*self.stem_list)
         
-        self.conv1 = DWConv(24, 24, ksize=3, stride=2,act=act)
+        self.conv1 = DWConv(24, 24, ksize=3,stride=2,act=act)
 
         self.stage2_list = [ShuffleV2DownSampling(24, base_channels[0], act=act)]
         for _ in range(stage_unit_repeat[0]):

@@ -43,23 +43,7 @@ class FocalLoss(nn.Module):
         :param labels:  实际类别. size:[B,N] or [B]        
         :return:
         """
-        # assert preds.dim()==2 and labels.dim()==1
         self.alpha = self.alpha.to(preds.device)
-        # # 这里并没有直接使用log_softmax, 因为后面会用到softmax的结果(当然你也可以使用log_softmax,然后进行exp操作)
-        # preds_softmax = F.softmax(preds, dim=1)
-        # preds_logsoft = torch.log(preds_softmax)
-        # # 这部分实现nll_loss ( CE = log_softmax + nll)
-        # print(preds_softmax.shape)
-        # preds_softmax = preds_softmax.gather(1, labels)
-        # preds_logsoft = preds_logsoft.gather(1, labels)
-        # self.alpha = self.alpha.gather(0, labels.view(-1))
-        # # torch.pow((1-preds_softmax), self.gamma) 为focal loss中 (1-pt)**γ
-        # loss = -torch.mul(torch.pow((1-preds_softmax), self.gamma), preds_logsoft)
-        # loss = torch.mul(self.alpha, loss.t())
-        print(preds.shape)
-        print(labels.shape)
-        ce = F.cross_entropy(preds, labels, reduction="none")
-        ce_log = torch.log(ce)
         logpt = - F.cross_entropy(preds, labels)
         pt = torch.exp(logpt)
 

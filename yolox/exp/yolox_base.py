@@ -35,15 +35,15 @@ class Exp(BaseExp):
         # self.multiscale_range to 0.
         # self.multiscale_range = 5
         # You can uncomment this line to specify a multiscale range
-        # self.random_size = (14, 26)
+        self.random_size = (10, 18)
         self.data_dir = "TUP-Armor-Dataset"
         self.train_ann = "instances_train2017.json"
         self.val_ann = "instances_val2017.json"
 
         # --------------- transform config ----------------- #
         #Mosaic
-        self.mosaic_prob = 0.99
-        self.mosaic_scale = (0.5, 1.5)
+        self.mosaic_prob = 1.0
+        self.mosaic_scale = (0.3, 2)
         #Mixup
         self.enable_mixup = False
         self.mixup_prob = 0.0
@@ -51,21 +51,21 @@ class Exp(BaseExp):
         #HSV
         self.hsv_prob = 1.0
         #Gaussian Blur
-        self.gaussian_prob = 0.01
+        self.noise_prob = 0.1
         #Flip 
         self.flip_prob = 0.0
         #Affine
-        self.degrees = 30.0
+        self.degrees = 20.0
         self.translate = 1.0
         self.shear = 1.0
-        self.perspective = 0.5
+        self.perspective = 1.0
 
         # --------------  training config --------------------- #
         #For Using SGD+Momentum
         self.warmup_epochs = 20
         self.max_epoch = 500
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 640
+        self.basic_lr_per_img = 0.01 / 32.0
         self.scheduler = "yoloxwarmcos"
         self.no_aug_epochs = 30
         self.min_lr_ratio = 0.06
@@ -134,7 +134,7 @@ class Exp(BaseExp):
                     max_labels=50,
                     flip_prob=self.flip_prob,
                     hsv_prob=self.hsv_prob,
-                    gaussian_prob=self.gaussian_prob),
+                    noise_prob=self.noise_prob),
                 cache=cache_img,
                 type="Train"
             )
@@ -148,7 +148,7 @@ class Exp(BaseExp):
                 max_labels=120,
                 flip_prob=self.flip_prob,
                 hsv_prob=self.hsv_prob,
-                gaussian_prob=self.gaussian_prob),
+                noise_prob=self.noise_prob),
             degrees=self.degrees,
             translate=self.translate,
             mosaic_scale=self.mosaic_scale,

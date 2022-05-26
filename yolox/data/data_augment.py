@@ -20,11 +20,14 @@ from shapely.geometry.geo import box
 
 from yolox.utils import xyxy2cxcywh
 
-def augment_hsv(img, hgain=0.015, sgain=0.3, vgain=0.3):
+def augment_hsv(img, hgain=0.015, sgain=0.2, vgain=0.2):
     """
     HSV Data Augment
     """
     r = np.random.uniform(-1, 1, 3) * [hgain, sgain, vgain] + 1  # random gains
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if (gray.mean() < 20):
+        r = np.random.uniform(0, 1, 3) * [hgain, sgain, vgain] + 1  # random gains
     hue, sat, val = cv2.split(cv2.cvtColor(img, cv2.COLOR_BGR2HSV))
     dtype = img.dtype  # uint8
 
@@ -38,13 +41,17 @@ def augment_hsv(img, hgain=0.015, sgain=0.3, vgain=0.3):
     ).astype(dtype)
     cv2.cvtColor(img_hsv, cv2.COLOR_HSV2BGR, dst=img)  # no return needed
 
-def augment_gaussian(img, kernel_size=3, sigmaX=0,sigmaY=0):
+def augment_noise(img,noise_density=0.03):
     """
-    Gaussian Blur Data Augment
+    Pepper Noise Data Augment
     """
-    cv2.GaussianBlur(src=img, ksize=(kernel_size, kernel_size), dst=img, sigmaX=sigmaX,sigmaY=sigmaY)#No return needed
-
-def is_outrange(img, box, padding_ratio=0.01, iou_thres=0.4):
+    half_density = noise_density / 2
+    mask = np.random.uniform(0,1,img.shape[:2])
+    img[mask < half_density] = [0,0,0]
+    img[mask > (1 - half_density)] = [255,255,255]# no return needed
+    
+    
+def is_outrange(img, box, padding_ratio=1, iou_thres=0.35, min_area=20):
     area_map = []
     for bbox in box:
         x = bbox[0::2]
@@ -53,29 +60,30 @@ def is_outrange(img, box, padding_ratio=0.01, iou_thres=0.4):
         x_min = np.min(x)
         y_max = np.max(y)
         y_min = np.min(y)
+        target_poly = Polygon(bbox.reshape(-1, 2))
+        area = target_poly.area
         #If Max or min is out of range or label is out of range:
         if (x_max > img.shape[1] or x_min < 0 
-            or y_max > img.shape[0] or y_min < 0):
+            or y_max > img.shape[0] or y_min < 0 or area < min_area):
                 img_pts = np.array([[0,0],[0, img.shape[0]],[img.shape[1],img.shape[0]],[img.shape[1], 0]])
                 img_poly = Polygon(img_pts)
-                target_poly = Polygon(bbox.reshape(-1, 2))
                 intersect_area = target_poly.convex_hull.intersection(img_poly.convex_hull).area
-                area = target_poly.area
                 iou = intersect_area / area
-                if iou > iou_thres:
+                if iou > iou_thres and area >= min_area:
                     # print(iou)
                     area_map.append(True)
                     continue
                 else:
                     center = np.array(target_poly.centroid.coords)
                     poly_vector = bbox.reshape(-1, 2) - np.repeat(center,len(bbox) / 2,axis=0)
-                    # Normalize Vector
-                    poly_vector /= np.linalg.norm(poly_vector, axis=1, keepdims=True)
-                    padded_poly = np.array(bbox.reshape(-1, 2) + poly_vector * area * padding_ratio, dtype=np.int64)
+                    # print("size:{}".format(area))
+                    # print("{} : {}".format(poly_vector,poly_vector * padding_ratio))
+                    padded_poly = np.array(bbox.reshape(-1, 2) + poly_vector * padding_ratio, dtype=np.int64)
                     cv2.fillConvexPoly(img, padded_poly, (0, 0, 0))
                     area_map.append(False)
         else:
             area_map.append(True)
+    # print("...")
     return area_map
 
 def box_candidates(box1, box2, wh_thr=10, ar_thr=10, area_thr=0.1):
@@ -238,12 +246,12 @@ def preproc(img, input_size, swap=(2, 0, 1)):
 
 
 class TrainTransform:
-    def __init__(self, num_apexes,max_labels=50, flip_prob=0.5, hsv_prob=1.0, gaussian_prob=0.2):
+    def __init__(self, num_apexes,max_labels=50, flip_prob=0.5, hsv_prob=1.0, noise_prob=0.2):
         self.num_apexes = num_apexes
         self.max_labels = max_labels
         self.flip_prob = flip_prob
         self.hsv_prob = hsv_prob
-        self.gaussian_prob = gaussian_prob
+        self.noise_prob = noise_prob
 
     def __call__(self, image, targets, input_dim):
         boxes = targets[:, :self.num_apexes * 2].copy()
@@ -262,8 +270,8 @@ class TrainTransform:
 
         if random.random() < self.hsv_prob:
             augment_hsv(image)
-        if random.random() < self.gaussian_prob:
-            augment_gaussian(image)
+        if random.random() < self.noise_prob:
+            augment_noise(image)
         # mirror image
         image_t, boxes = _mirror(image, boxes, self.flip_prob)
         height, width, _ = image_t.shape

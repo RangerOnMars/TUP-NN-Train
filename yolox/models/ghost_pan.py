@@ -194,27 +194,15 @@ class GhostPAN(nn.Module):
             )
             inner_outs.insert(0, inner_out)
         # bottom-up path
-        # outs = [inner_outs[0]]
-        # for idx in range(len(self.in_channels) - 1):
-        #     feat_low = outs[-1]
-        #     feat_height = inner_outs[idx + 1]
-        #     downsample_feat = self.downsamples[idx](feat_low)
-        #     out = self.bottom_up_blocks[idx](
-        #         torch.cat([downsample_feat, feat_height], 1)
-        #     )
-        #     outs.append(out)
-        outs = []
-        feat_low = []
+        outs = [inner_outs[0]]
         for idx in range(len(self.in_channels) - 1):
-            if (idx == 0):
-                feat_low = inner_outs[0]
-            else:
-                feat_low = outs[-1]
+            feat_low = outs[-1]
             feat_height = inner_outs[idx + 1]
             downsample_feat = self.downsamples[idx](feat_low)
             out = self.bottom_up_blocks[idx](
                 torch.cat([downsample_feat, feat_height], 1)
             )
             outs.append(out)
+
 
         return tuple(outs)
