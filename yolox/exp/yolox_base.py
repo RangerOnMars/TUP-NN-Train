@@ -51,7 +51,7 @@ class Exp(BaseExp):
         #HSV
         self.hsv_prob = 1.0
         #Gaussian Blur
-        self.noise_prob = 0.1
+        self.noise_prob = 1.0
         #Flip 
         self.flip_prob = 0.0
         #Affine

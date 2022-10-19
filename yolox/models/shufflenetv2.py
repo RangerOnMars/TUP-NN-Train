@@ -41,7 +41,7 @@ class Shufflenet(nn.Module):
 
         self.stage4_list = [ShuffleV2DownSampling(base_channels[1], base_channels[2], act=act)]
         for _ in range(stage_unit_repeat[2]):
-            self.stage2_list.append(ShuffleV2Basic(base_channels[2], base_channels[2], act=act))
+            self.stage4_list.append(ShuffleV2Basic(base_channels[2], base_channels[2], act=act))
         self.stage4 = nn.Sequential(*self.stage4_list)
 
     def forward(self, x):
