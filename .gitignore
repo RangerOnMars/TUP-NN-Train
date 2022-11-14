@@ -1,0 +1,52 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+build/
+*.lai
+*.la
+*.a
+*.lib
+*.ninja
+*.ninja_log
+*.ninja_deps
+
+# Executables
+*.exe
+*.out
+*.app
+Infantry_Vision
+
+#Cache
+*.cache
+
+#Logs
+*.log
+log/
+# *.WARNING
+# *.ERROR
+# *.INFO
+
+#CMake
+CMakeFiles
+*.cmake
+Makefile

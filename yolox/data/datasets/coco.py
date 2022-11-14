@@ -129,24 +129,7 @@ class COCODataset(Dataset):
         objs = []
         if type == "Train":
             for obj in annotations:
-                # x1 = np.max((0, obj["bbox"][0]))
-                # y1 = np.max((0, obj["bbox"][1]))
-                # x2 = np.min((width, x1 + np.max((0, obj["bbox"][2]))))
-                # y2 = np.min((height, y1 + np.max((0, obj["bbox"][3]))))
-                # if obj["area"] > 0 and x2 >= x1 and y2 >= y1:
-                #     obj["clean_bbox"] = [x1, y1, x2, y2]
-                #     objs.append(obj)
                 obj["segmentation"] = np.ravel(obj["segmentation"])
-                # x1 = np.max((0, obj["segmentation"][0]))
-                # y1 = np.max((0, obj["segmentation"][1]))
-                # x2 = np.max((0, obj["segmentation"][2]))
-                # y2 = np.max((0, obj["segmentation"][3]))
-                # x3 = np.max((0, obj["segmentation"][4]))
-                # y3 = np.max((0, obj["segmentation"][5]))
-                # x4 = np.max((0, obj["segmentation"][6]))
-                # y4 = np.max((0, obj["segmentation"][7]))
-
-                # obj["apex"] = [x1, y1, x2, y2, x3, y3 ,x4, y4]
                 objs.append(obj)
 
             num_objs = len(objs)

@@ -37,9 +37,6 @@ class COCOeval_opt(COCOeval):
             return []
         ious = np.zeros((len(dts), len(gts)))
 
-        sigmas = np.ones((4,1),dtype=np.float32) / 4.0
-        vars = (sigmas * 2)**2
-        k = len(sigmas)
         # compute oks between each detection and ground truth object
         for j, gt in enumerate(gts):
             # create bounds for ignore regions(double the gt bbox)
@@ -49,6 +46,10 @@ class COCOeval_opt(COCOeval):
             bb = gt['bbox']
             x0 = bb[0] - bb[2]; x1 = bb[0] + bb[2] * 2
             y0 = bb[1] - bb[3]; y1 = bb[1] + bb[3] * 2
+            sigmas = np.ones((len(xg),1),dtype=np.float32) / float(len(xg))
+            vars = (sigmas * 2)**2
+            k = len(sigmas)
+            
             for i, dt in enumerate(dts):
                 d = np.array(dt['keypoints'])
                 xd = d[0::3]; yd = d[1::3]

@@ -31,7 +31,6 @@ from yolox.utils import (
     setup_logger,
     synchronize
 )
-
 class Trainer:
     def __init__(self, exp, args):
         # init function only defines some basic attr, other attrs like model, optimizer are built in
@@ -340,6 +339,7 @@ class Trainer:
         if self.rank == 0:
             self.tblogger.add_scalar("val/COCOAP50", ap50, self.epoch + 1)
             self.tblogger.add_scalar("val/COCOAP50_95", ap50_95, self.epoch + 1)
+            self.tblogger.add_graph(self.model,torch.zeros(1,3,self.input_size[1],self.input_size[0]).to(self.device))
             logger.info("\n" + summary)
         synchronize()
 

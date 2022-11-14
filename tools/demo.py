@@ -15,6 +15,7 @@ from yolox.data.data_augment import ValTransform
 from yolox.data.datasets import COCO_CLASSES
 from yolox.exp import get_exp
 from yolox.utils import fuse_model, get_model_info, postprocess, vis
+from yolox.utils.boxes import poly_postprocess,min_rect
 
 IMAGE_EXT = [".jpg", ".jpeg", ".webp", ".bmp", ".png"]
 
@@ -112,7 +113,9 @@ class Predictor(object):
         self.model = model
         self.cls_names = cls_names
         self.decoder = decoder
+        self.num_apexes = exp.num_apexes
         self.num_classes = exp.num_classes
+        self.num_colors = exp.num_colors
         self.confthre = exp.test_conf
         self.nmsthre = exp.nmsthre
         self.test_size = exp.test_size
@@ -158,9 +161,35 @@ class Predictor(object):
             outputs = self.model(img)
             if self.decoder is not None:
                 outputs = self.decoder(outputs, dtype=outputs.type())
-            outputs = postprocess(
-                outputs, self.num_classes, self.confthre,
-                self.nmsthre, class_agnostic=True
+            bbox_preds = []
+            #Convert[reg,conf,color,classes] into [bbox,conf,color and classes]
+            for i in range(outputs.shape[0]):
+                bbox = min_rect(outputs[i,:,:self.num_apexes * 2])
+                bbox_preds.append(bbox)
+            
+            bbox_preds = torch.stack(bbox_preds)
+
+            conf_preds = outputs[:,:,self.num_apexes * 2].unsqueeze(-1)
+
+            cls_preds = outputs[:,:,self.num_apexes * 2 + 1 + self.num_colors:].repeat(1, 1, self.num_colors)
+            #Initialize colors_preds
+            colors_preds = torch.clone(cls_preds)
+
+            for i in range(self.num_colors):
+                colors_preds[:,:,i * self.num_classes:(i + 1) * self.num_classes] = outputs[:,:,self.num_apexes * 2 + 1 + i:self.num_apexes * 2 + 1 + i + 1].repeat(1, 1, self.num_classes)
+                    
+            cls_preds_converted = (colors_preds + cls_preds) / 2.0
+
+            outputs_rect = torch.cat((bbox_preds,conf_preds,cls_preds_converted),dim=2)
+            outputs_poly = torch.cat((outputs[:,:,:self.num_apexes * 2],conf_preds,cls_preds_converted),dim=2)
+            #Out Format: (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
+            outputs = poly_postprocess(
+                outputs_rect,
+                outputs_poly,
+                self.num_apexes,
+                self.num_classes * self.num_colors,
+                self.confthre,
+                self.nmsthre
             )
             logger.info("Infer time: {:.4f}s".format(time.time() - t0))
         return outputs, img_info
@@ -172,13 +201,12 @@ class Predictor(object):
             return img
         output = output.cpu()
 
-        bboxes = output[:, 0:4]
-
+        bboxes = output[:, 0:self.num_apexes*2]
         # preprocessing: resize
         bboxes /= ratio
 
-        cls = output[:, 6]
-        scores = output[:, 4] * output[:, 5]
+        cls = output[:, self.num_apexes*2 + 2]
+        scores = output[:, self.num_apexes*2] * output[:, self.num_apexes*2 + 1]
 
         vis_res = vis(img, bboxes, scores, cls, cls_conf, self.cls_names)
         return vis_res
@@ -211,18 +239,19 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
     width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)  # float
     height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)  # float
     fps = cap.get(cv2.CAP_PROP_FPS)
-    save_folder = os.path.join(
-        vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
-    )
-    os.makedirs(save_folder, exist_ok=True)
-    if args.demo == "video":
-        save_path = os.path.join(save_folder, args.path.split("/")[-1])
-    else:
-        save_path = os.path.join(save_folder, "camera.mp4")
-    logger.info(f"video save_path is {save_path}")
-    vid_writer = cv2.VideoWriter(
-        save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
-    )
+    if args.save_result:
+        save_folder = os.path.join(
+            vis_folder, time.strftime("%Y_%m_%d_%H_%M_%S", current_time)
+        )
+        os.makedirs(save_folder, exist_ok=True)
+        if args.demo == "video":
+            save_path = os.path.join(save_folder, args.path.split("/")[-1])
+        else:
+            save_path = os.path.join(save_folder, "camera.mp4")
+        logger.info(f"video save_path is {save_path}")
+        vid_writer = cv2.VideoWriter(
+            save_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (int(width), int(height))
+        )
     while True:
         ret_val, frame = cap.read()
         if ret_val:
@@ -230,6 +259,9 @@ def imageflow_demo(predictor, vis_folder, current_time, args):
             result_frame = predictor.visual(outputs[0], img_info, predictor.confthre)
             if args.save_result:
                 vid_writer.write(result_frame)
+            else:
+                cv2.namedWindow("yolox", cv2.WINDOW_NORMAL)
+                cv2.imshow("yolox", result_frame)
             ch = cv2.waitKey(1)
             if ch == 27 or ch == ord("q") or ch == ord("Q"):
                 break

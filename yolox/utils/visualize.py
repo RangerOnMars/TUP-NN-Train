@@ -5,29 +5,37 @@
 import cv2
 import numpy as np
 
+from yolox.utils.boxes import min_rect
+
 __all__ = ["vis"]
 
 
 def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None):
 
+    rect_bbox = min_rect(boxes)
     for i in range(len(boxes)):
         box = boxes[i]
         cls_id = int(cls_ids[i])
         score = scores[i]
         if score < conf:
             continue
-        x0 = int(box[0])
-        y0 = int(box[1])
-        x1 = int(box[2])
-        y1 = int(box[3])
+        # print(box)
+        x0 = int(rect_bbox[i][0])
+        y0 = int(rect_bbox[i][1])
 
         color = (_COLORS[cls_id] * 255).astype(np.uint8).tolist()
         text = '{}:{:.1f}%'.format(class_names[cls_id], score * 100)
         txt_color = (0, 0, 0) if np.mean(_COLORS[cls_id]) > 0.5 else (255, 255, 255)
         font = cv2.FONT_HERSHEY_SIMPLEX
-
+        num_pts = int(len(box) / 2)
         txt_size = cv2.getTextSize(text, font, 0.4, 1)[0]
-        cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)
+        pts = []
+        for j in range(num_pts):
+            pts.append(tuple(np.array(box[(2*j):(2*(j+1))], dtype=np.int32)))
+        for j in range(num_pts):
+            cv2.line(img, pts[j], pts[(j+1) % num_pts], color, 2)
+            
+        # cv2.rectangle(img, (x0, y0), (x1, y1), color, 2)
 
         txt_bk_color = (_COLORS[cls_id] * 255 * 0.7).astype(np.uint8).tolist()
         cv2.rectangle(

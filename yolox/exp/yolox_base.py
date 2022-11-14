@@ -51,7 +51,7 @@ class Exp(BaseExp):
         #HSV
         self.hsv_prob = 1.0
         #Gaussian Blur
-        self.noise_prob = 1.0
+        self.noise_prob = 0.5
         #Flip 
         self.flip_prob = 0.0
         #Affine
@@ -65,9 +65,9 @@ class Exp(BaseExp):
         self.warmup_epochs = 20
         self.max_epoch = 500
         self.warmup_lr = 0
-        self.basic_lr_per_img = 0.01 / 32.0
+        self.basic_lr_per_img = 0.001
         self.scheduler = "yoloxwarmcos"
-        self.no_aug_epochs = 30
+        self.no_aug_epochs = 50
         self.min_lr_ratio = 0.06
         self.ema = True
 
