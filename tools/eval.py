@@ -143,6 +143,8 @@ def main(exp, args, num_gpu):
     logger.info("Model Structure:\n{}".format(str(model)))
 
     evaluator = exp.get_evaluator(args.batch_size, is_distributed, args.test, args.legacy)
+    evaluator.per_class_AP = True
+    evaluator.per_class_AR = True
 
     torch.cuda.set_device(rank)
     model.cuda(rank)
@@ -188,6 +190,7 @@ def main(exp, args, num_gpu):
 
 
 if __name__ == "__main__":
+    configure_module()
     args = make_parser().parse_args()
     exp = get_exp(args.exp_file, args.name)
     exp.merge(args.opts)

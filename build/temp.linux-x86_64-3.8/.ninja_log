@@ -1,5 +1,0 @@
-# ninja log v5
-0	5293	1633952762218353695	/home/rangeronmars/AI/YOLOX-main/build/temp.linux-x86_64-3.8/home/rangeronmars/AI/YOLOX-main/yolox/layers/csrc/cocoeval/cocoeval.o	c62ccb4270508ab8
-0	6621	1633952763542338575	/home/rangeronmars/AI/YOLOX-main/build/temp.linux-x86_64-3.8/home/rangeronmars/AI/YOLOX-main/yolox/layers/csrc/vision.o	6c87cc519fdbae2
-0	4945	1634113644046899659	/home/rangeronmars/AI/yolox_poly/build/temp.linux-x86_64-3.8/home/rangeronmars/AI/yolox_poly/yolox/layers/csrc/cocoeval/cocoeval.o	64e9dd842179e3d
-0	6184	1634113645282943159	/home/rangeronmars/AI/yolox_poly/build/temp.linux-x86_64-3.8/home/rangeronmars/AI/yolox_poly/yolox/layers/csrc/vision.o	7faa9b257eb1bbcb

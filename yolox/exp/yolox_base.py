@@ -77,6 +77,9 @@ class Exp(BaseExp):
 
         self.print_interval = 10
         self.eval_interval = 10
+        self.per_class_AP = True
+        self.per_class_AR = True
+        self.save_history_ckpt = False
         self.exp_name = os.path.split(os.path.realpath(__file__))[1].split(".")[0]
 
         # -----------------  testing config ------------------ #
@@ -179,7 +182,7 @@ class Exp(BaseExp):
 
         # Make sure each process has different random seed, especially for 'fork' method.
         # Check https://github.com/pytorch/pytorch/issues/63311 for more details.
-        # dataloader_kwargs["worker_init_fn"] = worker_init_reset_seed
+        dataloader_kwargs["worker_init_fn"] = worker_init_reset_seed
         train_loader = DataLoader(self.dataset, **dataloader_kwargs)
 
         return train_loader
@@ -309,6 +312,8 @@ class Exp(BaseExp):
             num_classes=self.num_classes,
             num_colors=self.num_colors,
             testdev=testdev,
+            per_class_AP=self.per_class_AP,
+            per_class_AR=self.per_class_AR
         )
         return evaluator
 
