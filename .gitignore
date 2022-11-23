@@ -50,3 +50,5 @@ log/
 CMakeFiles
 *.cmake
 Makefile
+
+*__pycache__*
