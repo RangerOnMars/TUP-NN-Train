@@ -52,3 +52,6 @@ CMakeFiles
 Makefile
 
 *__pycache__*
+
+build/
+dist/
