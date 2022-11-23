@@ -9,6 +9,7 @@ import json
 import tempfile
 import time
 import numpy as np
+from collections import ChainMap, defaultdict
 from loguru import logger
 from tabulate import tabulate
 from tqdm import tqdm
@@ -83,12 +84,12 @@ class COCOEvaluator:
     def __init__(
         self,
         dataloader,
-        img_size,
-        confthre,
-        nmsthre,
-        num_apexes,
-        num_classes,
-        num_colors,
+        img_size: int,
+        confthre: float,
+        nmsthre: float,
+        num_apexes: int,
+        num_classes: int,
+        num_colors: int,
         testdev=False,
         per_class_AP: bool = False,
         per_class_AR: bool = False,
@@ -96,11 +97,13 @@ class COCOEvaluator:
         """
         Args:
             dataloader (Dataloader): evaluate dataloader.
-            img_size (int): image size after preprocess. images are resized
+            img_size: image size after preprocess. images are resized
                 to squares whose shape is (img_size, img_size).
-            confthre (float): confidence threshold ranging from 0 to 1, which
+            confthre: confidence threshold ranging from 0 to 1, which
                 is defined in the config file.
-            nmsthre (float): IoU threshold of non-max supression ranging from 0 to 1.
+            nmsthre: IoU threshold of non-max supression ranging from 0 to 1.
+            per_class_AP: Show per class AP during evalution or not. Default to False.
+            per_class_AR: Show per class AR during evalution or not. Default to False.
         """
         self.dataloader = dataloader
         self.img_size = img_size
@@ -121,6 +124,7 @@ class COCOEvaluator:
         trt_file=None,
         decoder=None,
         test_size=None,
+        return_outputs=False
     ):
         """
         COCO average precision (AP) Evaluation. Iterate inference on the test dataset
@@ -143,21 +147,22 @@ class COCOEvaluator:
             model = model.half()
         ids = []
         data_list = []
+        output_data = defaultdict()
         progress_bar = tqdm if is_main_process() else iter
 
         inference_time = 0
         nms_time = 0
         n_samples = max(len(self.dataloader) - 1, 1)
 
-        # if trt_file is not None:
-        #     from torch2trt import TRTModule
+        if trt_file is not None:
+            from torch2trt import TRTModule
 
-        #     model_trt = TRTModule()
-        #     model_trt.load_state_dict(torch.load(trt_file))
+            model_trt = TRTModule()
+            model_trt.load_state_dict(torch.load(trt_file))
 
-        #     x = torch.ones(1, 3, test_size[0], test_size[1]).cuda()
-        #     model(x)
-        #     model = model_trt
+            x = torch.ones(1, 3, test_size[0], test_size[1]).cuda()
+            model(x)
+            model = model_trt
 
         for cur_iter, (imgs, _, info_imgs, ids) in enumerate(
             progress_bar(self.dataloader)
@@ -165,8 +170,7 @@ class COCOEvaluator:
 
             with torch.no_grad():
                 imgs = imgs.type(tensor_type)
-
-                # skip the the last iters since batchsize might be not enough for batch inference
+                # skip the last iters since batchsize might be not enough for batch inference
                 is_time_record = cur_iter < len(self.dataloader) - 1
                 if is_time_record:
                     start = time.time()
@@ -217,26 +221,37 @@ class COCOEvaluator:
                 if is_time_record:
                     nms_end = time_synchronized()
                     nms_time += nms_end - infer_end
-            data_list.extend(self.convert_to_coco_format(outputs, info_imgs, ids))
+
+            data_list_elem, image_wise_data = self.convert_to_coco_format(
+                outputs, info_imgs, ids, return_outputs=True)
+            data_list.extend(data_list_elem)
+            output_data.update(image_wise_data)
 
         statistics = torch.cuda.FloatTensor([inference_time, nms_time, n_samples])
         if distributed:
             data_list = gather(data_list, dst=0)
+            output_data = gather(output_data, dst=0)
             data_list = list(itertools.chain(*data_list))
+            output_data = dict(ChainMap(*output_data))
             torch.distributed.reduce(statistics, dst=0)
+
         eval_results = self.evaluate_prediction(data_list, statistics)
         synchronize()
+
+        if return_outputs:
+            return eval_results, output_data
         return eval_results
 
-    def convert_to_coco_format(self, outputs, info_imgs, ids):
+    def convert_to_coco_format(self, outputs, info_imgs, ids, return_outputs=False):
         data_list = []
+        image_wise_data = defaultdict(dict)
         for (output, img_h, img_w, img_id) in zip(
             outputs, info_imgs[0], info_imgs[1], ids
         ):
             if output is None:
                 continue
             output = output.cpu()
-            # print(output.shape)
+
             apexes = output[:, :self.num_apexes * 2]
             bboxes = min_rect(apexes)
 
@@ -244,13 +259,24 @@ class COCOEvaluator:
             scale = min(
                 self.img_size[0] / float(img_h), self.img_size[1] / float(img_w)
             )
-
-            bboxes /= scale
-            apexes /= scale
             # cls = output[:, 6]
             # scores = output[:, 4] * output[:, 5]
             cls = output[:, self.num_apexes * 2 + 2]
             scores = output[:, self.num_apexes * 2] * output[:, self.num_apexes * 2 + 1]
+            #TODO:Fix for keypoints
+            image_wise_data.update({
+                int(img_id): {
+                    "bboxes": [box.numpy().tolist() for box in bboxes],
+                    # "segmentation": [segm.numpy().tolist() for segm in apexes],
+                    "scores": [score.numpy().item() for score in scores],
+                    "categories": [
+                        self.dataloader.dataset.class_ids[int(cls[ind])]
+                        for ind in range(bboxes.shape[0])
+                    ],
+                }
+            })
+            bboxes /= scale
+            apexes /= scale
             for ind in range(bboxes.shape[0]):
                 label = self.dataloader.dataset.class_ids[int(cls[ind])]
 
@@ -272,6 +298,8 @@ class COCOEvaluator:
                 # print(pred_data)
                 data_list.append(pred_data)
 
+        if return_outputs:
+            return data_list, image_wise_data
         return data_list
 
     def evaluate_prediction(self, data_dict, statistics):

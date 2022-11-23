@@ -179,6 +179,7 @@ class COCOeval_opt(COCOeval):
             print("Please run evaluate() first")
 
         self.eval = self.module.COCOevalAccumulate(self._paramsEval, self._evalImgs_cpp)
+        
         # recall is num_iou_thresholds X num_categories X num_area_ranges X num_max_detections
         self.eval["recall"] = np.array(self.eval["recall"]).reshape(
             self.eval["counts"][:1] + self.eval["counts"][2:]

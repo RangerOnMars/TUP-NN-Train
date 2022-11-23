@@ -34,7 +34,6 @@ build/
 *.exe
 *.out
 *.app
-Infantry_Vision
 
 #Cache
 *.cache
@@ -55,3 +54,6 @@ Makefile
 
 build/
 dist/
+yolox.egg-info/
+wandb/
+YOLOX_outupts/

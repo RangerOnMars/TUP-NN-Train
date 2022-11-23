@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding:utf-8 -*-
-# Copyright (c) 2014-2021 Megvii Inc. All rights reserved.
+# Copyright (c) Megvii Inc. All rights reserved.
 
 import contextlib
 from copy import deepcopy
+from typing import Sequence
 
 import torch
 import torch.nn as nn
-from thop import profile
 
 __all__ = [
     "fuse_conv_and_bn",
@@ -19,7 +19,8 @@ __all__ = [
 ]
 
 
-def get_model_info(model, tsize):
+def get_model_info(model: nn.Module, tsize: Sequence[int]) -> str:
+    from thop import profile
 
     stride = 64
     img = torch.zeros((1, 3, stride, stride), device=next(model.parameters()).device)
@@ -95,7 +96,7 @@ def fuse_model(model: nn.Module) -> nn.Module:
     return model
 
 
-def replace_module(module, replaced_module_type, new_module_type, replace_func=None):
+def replace_module(module, replaced_module_type, new_module_type, replace_func=None) -> nn.Module:
     """
     Replace given type in module to a new type. mostly used in deploy.
 
@@ -125,6 +126,7 @@ def replace_module(module, replaced_module_type, new_module_type, replace_func=N
                 model.add_module(name, new_child)
 
     return model
+
 
 def freeze_module(module: nn.Module, name=None) -> nn.Module:
     """freeze module inplace

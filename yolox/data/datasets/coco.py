@@ -13,6 +13,22 @@ from ..dataloading import get_yolox_datadir
 from .datasets_wrapper import Dataset
 
 
+def remove_useless_info(coco):
+    """
+    Remove useless info in coco dataset. COCO object is modified inplace.
+    This function is mainly used for saving memory (save about 30% mem).
+    """
+    if isinstance(coco, COCO):
+        dataset = coco.dataset
+        dataset.pop("info", None)
+        dataset.pop("licenses", None)
+        for img in dataset["images"]:
+            img.pop("license", None)
+            img.pop("coco_url", None)
+            img.pop("date_captured", None)
+            img.pop("flickr_url", None)
+
+
 class COCODataset(Dataset):
     """
     COCO dataset class.
@@ -28,7 +44,6 @@ class COCODataset(Dataset):
         img_size=(640, 512),
         preproc=None,
         cache=False,
-        type="default"
     ):
         """
         COCO dataset initialization. Annotation data are read into memory by COCO API.
@@ -49,16 +64,16 @@ class COCODataset(Dataset):
         self.data_dir = data_dir
         self.json_file = json_file
         self.coco = COCO(os.path.join(self.data_dir, "annotations", self.json_file))
+        remove_useless_info(self.coco)
         self.ids = self.coco.getImgIds()
         self.class_ids = sorted(self.coco.getCatIds())
-        cats = self.coco.loadCats(self.coco.getCatIds())
-        self._classes = tuple([c["name"] for c in cats])
+        self.cats = self.coco.loadCats(self.coco.getCatIds())
+        self._classes = tuple([c["name"] for c in self.cats])
         self.imgs = None
         self.name = name
         self.img_size = img_size
         self.preproc = preproc
-        self.type = type
-        self.annotations = self._load_coco_annotations(type)
+        self.annotations = self._load_coco_annotations()
         if cache:
             self._cache_images()
 
@@ -68,8 +83,8 @@ class COCODataset(Dataset):
     def __del__(self):
         del self.imgs
 
-    def _load_coco_annotations(self, type):
-        return [self.load_anno_from_ids(_ids, type) for _ids in self.ids]
+    def _load_coco_annotations(self):
+        return [self.load_anno_from_ids(_ids) for _ids in self.ids]
 
     def _cache_images(self):
         logger.warning(
@@ -81,7 +96,7 @@ class COCODataset(Dataset):
         )
         max_h = self.img_size[0]
         max_w = self.img_size[1]
-        cache_file = self.data_dir + "/img_resized_cache_" + self.name + ".array"
+        cache_file = os.path.join(self.data_dir, f"img_resized_cache_{self.name}.array")
         if not os.path.exists(cache_file):
             logger.info(
                 "Caching images for the first time. This might take about 20 minutes for COCO"
@@ -120,7 +135,7 @@ class COCODataset(Dataset):
             mode="r+",
         )
 
-    def load_anno_from_ids(self, id_, type):
+    def load_anno_from_ids(self, id_):
         im_ann = self.coco.loadImgs(id_)[0]
         width = im_ann["width"]
         height = im_ann["height"]
@@ -201,6 +216,7 @@ class COCODataset(Dataset):
             if "file_name" in im_ann
             else "{:012}".format(id_) + ".jpg"
         )
+        
         return (res, img_info, resized_info, file_name)
 
     def load_anno(self, index):
@@ -222,7 +238,7 @@ class COCODataset(Dataset):
         img_file = os.path.join(self.data_dir, self.name, file_name)
 
         img = cv2.imread(img_file)
-        assert img is not None
+        assert img is not None, f"file named {img_file} not found"
 
         return img
 

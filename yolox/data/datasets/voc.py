@@ -64,8 +64,7 @@ class AnnotationTransform(object):
             pts = ["xmin", "ymin", "xmax", "ymax"]
             bndbox = []
             for i, pt in enumerate(pts):
-                cur_pt = int(bbox.find(pt).text) - 1
-                # scale height or width
+                cur_pt = int(float(bbox.find(pt).text)) - 1                # scale height or width
                 # cur_pt = cur_pt / width if i % 2 == 0 else cur_pt / height
                 bndbox.append(cur_pt)
             label_idx = self.class_to_ind[name]
@@ -149,7 +148,7 @@ class VOCDetection(Dataset):
         )
         max_h = self.img_size[0]
         max_w = self.img_size[1]
-        cache_file = self.root + "/img_resized_cache_" + self.name + ".array"
+        cache_file = os.path.join(self.root, f"img_resized_cache_{self.name}.array")
         if not os.path.exists(cache_file):
             logger.info(
                 "Caching images for the first time. This might take about 3 minutes for VOC"
@@ -219,7 +218,7 @@ class VOCDetection(Dataset):
     def load_image(self, index):
         img_id = self.ids[index]
         img = cv2.imread(self._imgpath % img_id, cv2.IMREAD_COLOR)
-        assert img is not None
+        assert img is not None, f"file named {self._imgpath % img_id} not found"
 
         return img
 

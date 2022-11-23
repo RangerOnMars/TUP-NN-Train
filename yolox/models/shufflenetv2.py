@@ -13,23 +13,23 @@ class Shufflenet(nn.Module):
         act="silu",
     ):
         super().__init__()
-        stage_unit_repeat = [3, 7 ,3]
+        stage_unit_repeat = [2,2,2]
         self.channels = []
         self.out_features = out_features
         base_channels = channels
         # print(chann)
 
         self.stem_list = []
-        self.stem_list.append(BaseConv(3,22,ksize=6,stride=2))
-        self.coord = CoordConv(22, 24, ksize=3,stride=1)
-        # self.stem_list.append(DWConv(16, 24, ksize=1, stride=1,act=act))
+        self.stem_list.append(BaseConv(3,16,ksize=6,stride=2))
+        # self.coord = CoordConv(22, 24, ksize=3,stride=1)
+        # self.stem_list.append(DWConv(16, 32, ksize=1, stride=1,act=act))
         # self.stem_list.append(DWConv(3, 48, ksize=3, stride=2,act=act))
         # self.stem_list.append(DWConv(48, 48, ksize=3, stride=2,act=act))
         self.stem = nn.Sequential(*self.stem_list)
         
-        self.conv1 = DWConv(24, 24, ksize=3,stride=2,act=act)
+        self.conv1 = DWConv(16, 32, ksize=3,stride=2,act=act)
 
-        self.stage2_list = [ShuffleV2DownSampling(24, base_channels[0], act=act)]
+        self.stage2_list = [ShuffleV2DownSampling(32, base_channels[0], act=act)]
         for _ in range(stage_unit_repeat[0]):
             self.stage2_list.append(ShuffleV2Basic(base_channels[0], base_channels[0], act=act))
         self.stage2 = nn.Sequential(*self.stage2_list)
@@ -48,7 +48,7 @@ class Shufflenet(nn.Module):
         outputs = {}
         # print(x.shape)
         x = self.stem(x)
-        x = self.coord(x)
+        # x = self.coord(x)
         outputs["stem"] = x
         x = self.conv1(x)
         outputs["stage1"] = x

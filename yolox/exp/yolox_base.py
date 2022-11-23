@@ -104,6 +104,7 @@ class Exp(BaseExp):
 
         self.model.apply(init_yolo)
         self.model.head.initialize_biases(1e-2)
+        self.model.train()
         return self.model
 
     #Generate Data Loader
@@ -139,7 +140,6 @@ class Exp(BaseExp):
                     hsv_prob=self.hsv_prob,
                     noise_prob=self.noise_prob),
                 cache=cache_img,
-                type="Train"
             )
         #TODO:Fix Mosaic Data Augmentation
         dataset = MosaicDetection(
@@ -183,6 +183,7 @@ class Exp(BaseExp):
         # Make sure each process has different random seed, especially for 'fork' method.
         # Check https://github.com/pytorch/pytorch/issues/63311 for more details.
         dataloader_kwargs["worker_init_fn"] = worker_init_reset_seed
+        
         train_loader = DataLoader(self.dataset, **dataloader_kwargs)
 
         return train_loader
@@ -274,7 +275,6 @@ class Exp(BaseExp):
             name="images",
             img_size=self.test_size,
             preproc=ValTransform(legacy=legacy),
-            type="eval"
         )
 
         if is_distributed:
@@ -294,7 +294,6 @@ class Exp(BaseExp):
         val_loader = torch.utils.data.DataLoader(valdataset, **dataloader_kwargs)
 
         return val_loader
-
 
     def get_evaluator(self, batch_size, is_distributed, testdev=False, legacy=False):
         """
@@ -317,5 +316,11 @@ class Exp(BaseExp):
         )
         return evaluator
 
-    def eval(self, model, evaluator, is_distributed, half=False):
-        return evaluator.evaluate(model, is_distributed, half)
+    def get_trainer(self, args):
+        from yolox.core import Trainer
+        trainer = Trainer(self, args)
+        # NOTE: trainer shouldn't be an attribute of exp object
+        return trainer
+
+    def eval(self, model, evaluator, is_distributed, half=False, return_outputs=False):
+        return evaluator.evaluate(model, is_distributed, half, return_outputs=return_outputs)
